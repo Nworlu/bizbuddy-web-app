@@ -1,0 +1,67 @@
+export const BUSINESS_TYPES = ["Fashion", "Food", "Beauty", "Electronics", "Retail", "Services", "Other"] as const;
+export const PAYMENT_METHODS = ["Bank Transfer", "Cash", "POS", "Other"] as const;
+export const EXPENSE_CATEGORIES = ["Stock", "Delivery", "Packaging", "Transport", "Rent", "Salaries", "Marketing", "Other"] as const;
+
+export type BusinessType = (typeof BUSINESS_TYPES)[number];
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+/** Calendar date in the user's local time zone, formatted YYYY-MM-DD. */
+export type LocalDate = string;
+
+export interface Business {
+  name: string;
+  ownerName: string;
+  /** Shop owner's phone. Older records saved before this field existed may omit it. */
+  phone?: string;
+  type: BusinessType;
+  createdAt: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  createdAt: string;
+}
+
+/**
+ * A sale records what was sold and for how much. It does not store what was paid:
+ * every naira received is a Payment linked to the sale, so balances have one source of truth.
+ */
+export interface Sale {
+  id: string;
+  customerId: string;
+  product: string;
+  totalAmount: number;
+  date: LocalDate;
+  createdAt: string;
+}
+
+export interface Payment {
+  id: string;
+  saleId: string;
+  customerId: string;
+  amount: number;
+  method: PaymentMethod;
+  date: LocalDate;
+  createdAt: string;
+}
+
+export interface Expense {
+  id: string;
+  category: ExpenseCategory;
+  amount: number;
+  description: string;
+  date: LocalDate;
+  createdAt: string;
+}
+
+export interface BizData {
+  version: 1;
+  business: Business | null;
+  customers: Customer[];
+  sales: Sale[];
+  payments: Payment[];
+  expenses: Expense[];
+}

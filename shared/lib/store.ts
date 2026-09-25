@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore } from "react";
 import { demoData } from "./demo";
+import { saleBalance } from "./finance";
 import type { BizData, BusinessType, LocalDate, PaymentMethod } from "./types";
 
 const STORAGE_KEY = "bizbuddy:v1";
@@ -79,6 +80,18 @@ export function recordSale(input: { customerName: string; product: string; total
   const payments = input.amountPaid > 0 ? [...data.payments, { id: crypto.randomUUID(), saleId, customerId: customer.id, amount: input.amountPaid, method: input.method, date: input.date, createdAt: new Date().toISOString() }] : data.payments;
   commit({ ...data, customers, sales, payments });
   return { customerName: customer.name, outstanding: input.totalAmount - input.amountPaid };
+}
+
+/** Adds a later payment to one sale. The amount cannot be more than what is still owed. */
+export function recordPayment(input: { saleId: string; amount: number; method: PaymentMethod; date: LocalDate }) {
+  const data = getSnapshot();
+  const sale = data.sales.find((item) => item.id === input.saleId);
+  if (!sale) throw new Error("Sale not found");
+  const owing = saleBalance(sale, data.payments);
+  if (input.amount <= 0 || input.amount > owing) throw new Error("Payment is more than what is still owed");
+  const payment = { id: crypto.randomUUID(), saleId: sale.id, customerId: sale.customerId, amount: input.amount, method: input.method, date: input.date, createdAt: new Date().toISOString() };
+  commit({ ...data, payments: [...data.payments, payment] });
+  return { outstanding: owing - input.amount };
 }
 
 /** Replaces all existing records with the sample business. Callers must confirm first if data exists. */

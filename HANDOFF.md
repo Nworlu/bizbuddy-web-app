@@ -4,9 +4,9 @@ _Last updated: 25 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, and Record Sale. Every other product screen has a route with a "coming soon" placeholder.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, and Sale Details with Record Payment. Expenses, customers, Ask BizBuddy, and settings are still placeholders.
 
-The next task is the **Sales list** (`/sales`), then Sale Details with Record Payment. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **Customers** (`/customers`): who owes you, then a customer page. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -55,22 +55,24 @@ app/
   privacy/page.tsx, terms/page.tsx
   (app)/layout.tsx             AppShell
   (app)/dashboard/page.tsx     dashboard  (not / — that URL is the landing page)
+  (app)/sales/page.tsx         sales list
   (app)/sales/new/page.tsx     Record Sale
-  (app)/{sales,expenses,customers,ask,settings}/…   ComingSoon, except sales/new
+  (app)/sales/[id]/page.tsx    sale details and record payment
+  (app)/{expenses,customers,ask,settings}/…   ComingSoon
 
 features/
   marketing/                   landing screen, FAQ, legal shell
   onboarding/                  welcome screen
   shell/                       app shell, useBiz()
   dashboard/                   dashboard screen
-  sales/                       Record Sale screen; the sales list is still a placeholder
+  sales/                       sales list, Record Sale, sale details
   expenses, customers, ask, settings/   screen placeholders only
 
 shared/
   ui/                          logo, icons, coming-soon  (used by more than one feature)
   lib/
     types.ts                   data model
-    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale()
+    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment()
     toast.ts                   showToast(); the shell listens and shows it
     finance.ts                 ALL money calculations (pure functions)
     dates.ts                   local-date helpers, period ranges
@@ -106,12 +108,11 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 
 ## Next steps
 
-1. **Sales list and Sale Details** (`/sales`, `/sales/[id]`). The list is still a placeholder, and Record Sale's back link goes there. Sale Details needs **Record Payment**, which adds a `Payment` linked to that sale and must not exceed `saleBalance`. Record Sale itself is done: `recordSale()` creates the customer when the name is new, the sale (`totalAmount` only), and a payment when they paid something. The form shows outstanding as you type, blocks a payment above the total, and toasts before returning to the dashboard.
-2. **Customers and Customer Details.** Record Payment on a customer covers several sales, so it has to decide which sales the money pays off. Proposed rule: oldest open sale first. Confirm it with the product owner and put it in `finance.ts`.
-3. **Record Expense and the Expenses list.**
-4. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
-5. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
-6. **Remaining work from the spec:**
+1. **Customers and Customer Details.** The sales list and a sale page are done. A sale page records a later payment on that one sale, and the amount cannot exceed what is still owed. A payment that covers several of a customer's sales is still open. Proposed rule: oldest open sale first. Confirm it with the product owner and put it in `finance.ts`.
+2. **Record Expense and the Expenses list.**
+3. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
+4. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
+5. **Remaining work from the spec:**
    - the Custom date range
    - an offline banner
    - edit and delete for sales, with confirmation (§27)

@@ -70,6 +70,8 @@ export function createBusiness(input: { name: string; ownerName: string; phone: 
 
 /** Creates the customer when the name is new, then the sale, then a payment when they paid something. */
 export function recordSale(input: { customerName: string; product: string; totalAmount: number; amountPaid: number; method: PaymentMethod; date: LocalDate }) {
+  if (!isWholeNaira(input.totalAmount) || input.totalAmount <= 0) throw new Error("Sale amount must be whole naira above 0");
+  if (!isWholeNaira(input.amountPaid) || input.amountPaid < 0 || input.amountPaid > input.totalAmount) throw new Error("Amount paid must be whole naira, up to the sale amount");
   const data = getSnapshot();
   const name = input.customerName.trim();
   const existing = data.customers.find((customer) => customer.name.toLowerCase() === name.toLowerCase());
@@ -88,7 +90,7 @@ export function recordPayment(input: { saleId: string; amount: number; method: P
   const sale = data.sales.find((item) => item.id === input.saleId);
   if (!sale) throw new Error("Sale not found");
   const owing = saleBalance(sale, data.payments);
-  if (input.amount <= 0 || input.amount > owing) throw new Error("Payment is more than what is still owed");
+  if (!isWholeNaira(input.amount) || input.amount <= 0 || input.amount > owing) throw new Error("Payment must be whole naira, up to what is still owed");
   const payment = { id: crypto.randomUUID(), saleId: sale.id, customerId: sale.customerId, amount: input.amount, method: input.method, date: input.date, createdAt: new Date().toISOString() };
   commit({ ...data, payments: [...data.payments, payment] });
   return { outstanding: owing - input.amount };
@@ -97,6 +99,11 @@ export function recordPayment(input: { saleId: string; amount: number; method: P
 /** Replaces all existing records with the sample business. Callers must confirm first if data exists. */
 export function loadDemoData() {
   commit(demoData());
+}
+
+/** Money is stored in whole naira. The screen rounds to whole naira, so kobo would make balances look wrong. */
+function isWholeNaira(amount: number): boolean {
+  return Number.isSafeInteger(amount);
 }
 
 export function hasRecords(data: BizData): boolean {

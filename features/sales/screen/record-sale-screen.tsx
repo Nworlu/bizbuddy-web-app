@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { today } from "@/shared/lib/dates";
-import { formatNaira } from "@/shared/lib/format";
+import { formatNaira, parseNaira } from "@/shared/lib/format";
 import { recordSale } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/shared/lib/types";
@@ -41,8 +41,8 @@ export function RecordSalePage() {
     return data.customers.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 6);
   }, [customer, data.customers]);
 
-  const totalNum = parseAmount(total);
-  const paidNum = paid.trim() === "" ? 0 : parseAmount(paid);
+  const totalNum = parseNaira(total);
+  const paidNum = paid.trim() === "" ? 0 : parseNaira(paid);
   const known = customer.trim() !== "" && data.customers.some((item) => item.name.toLowerCase() === customer.trim().toLowerCase());
   const outstanding = totalNum !== null && paidNum !== null ? totalNum - paidNum : null;
 
@@ -51,8 +51,8 @@ export function RecordSalePage() {
     const next: Record<string, string> = {};
     if (!customer.trim()) next.customer = "Enter the customer's name.";
     if (!product.trim()) next.product = "Enter what you sold.";
-    if (totalNum === null || totalNum <= 0) next.total = "Enter a sale amount greater than 0.";
-    if (paidNum === null || paidNum < 0) next.paid = "Enter how much they paid, or leave it at 0.";
+    if (totalNum === null || totalNum <= 0) next.total = "Enter the sale amount in whole naira, like 85000.";
+    if (paidNum === null) next.paid = "Enter what they paid in whole naira, or leave it empty.";
     else if (totalNum !== null && paidNum > totalNum) next.paid = "They can't pay more than the sale amount.";
     if (!date) next.date = "Choose the date of the sale.";
     else if (date > today()) next.date = "The sale date can't be in the future.";
@@ -85,6 +85,8 @@ export function RecordSalePage() {
             id="customer"
             value={customer}
             autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
             placeholder="e.g. David Okafor"
             aria-invalid={!!errors.customer}
             aria-expanded={open && matches.length > 0}
@@ -120,7 +122,7 @@ export function RecordSalePage() {
             <label htmlFor="total" className="mb-1.5 block text-sm font-medium text-ink">Sale Amount</label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-muted">₦</span>
-              <input id="total" inputMode="decimal" value={total} onChange={(event) => change("total", event.target.value, setTotal)} placeholder="0" aria-invalid={!!errors.total} className={`${fieldClass(!!errors.total)} pl-8`} />
+              <input id="total" inputMode="numeric" value={total} onChange={(event) => change("total", event.target.value, setTotal)} placeholder="0" aria-invalid={!!errors.total} className={`${fieldClass(!!errors.total)} pl-8`} />
             </div>
             {errors.total && <p className="mt-1 text-xs text-rose-700">{errors.total}</p>}
           </div>
@@ -128,7 +130,7 @@ export function RecordSalePage() {
             <label htmlFor="paid" className="mb-1.5 block text-sm font-medium text-ink">Amount Paid</label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-muted">₦</span>
-              <input id="paid" inputMode="decimal" value={paid} onChange={(event) => change("paid", event.target.value, setPaid)} placeholder="0" aria-invalid={!!errors.paid} className={`${fieldClass(!!errors.paid)} pl-8`} />
+              <input id="paid" inputMode="numeric" value={paid} onChange={(event) => change("paid", event.target.value, setPaid)} placeholder="0" aria-invalid={!!errors.paid} className={`${fieldClass(!!errors.paid)} pl-8`} />
             </div>
             {errors.paid && <p className="mt-1 text-xs text-rose-700">{errors.paid}</p>}
           </div>
@@ -169,13 +171,6 @@ export function RecordSalePage() {
       </form>
     </div>
   );
-}
-
-function parseAmount(value: string): number | null {
-  const cleaned = value.replace(/,/g, "").trim();
-  if (cleaned === "") return null;
-  const amount = Number(cleaned);
-  return Number.isFinite(amount) ? amount : null;
 }
 
 function fieldClass(error: boolean) {

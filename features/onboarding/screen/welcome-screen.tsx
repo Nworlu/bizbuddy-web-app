@@ -1,19 +1,104 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { createBusiness, loadDemoData, useBizData } from "@/shared/lib/store";
-import { BUSINESS_TYPES, type BusinessType } from "@/shared/lib/types";
+import { createBusiness, hasRecords, loadDemoData, useBizData } from "@/shared/lib/store";
+import { BUSINESS_TYPES, type BizData, type BusinessType } from "@/shared/lib/types";
 import { Logo } from "@/shared/ui/logo";
 
 type Step = "welcome" | "account" | "business";
 
+const SAVE_FAILED = "This browser couldn't save the sample shop. Check that site data is allowed, then try again.";
+
 export default function WelcomePage() {
-  const router = useRouter();
   const params = useSearchParams();
   const data = useBizData();
-  const demo = params.get("demo") === "1";
 
+  if (!data) return <WelcomeLoading />;
+  // /welcome?demo=1 never loads the sample on its own: it always waits for a tap, and asks first if a shop exists.
+  if (params.get("demo") === "1") return <SampleShop data={data} />;
+  return <Onboarding data={data} />;
+}
+
+export function WelcomeLoading({ label = "Loading…" }: { label?: string }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-surface">
+      <p role="status" className="text-sm text-ink-muted">{label}</p>
+    </main>
+  );
+}
+
+function SampleShop({ data }: { data: BizData }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+  const shop = data.business;
+
+  function open() {
+    setOpening(true);
+    setError(null);
+    try {
+      loadDemoData();
+      router.replace("/dashboard");
+    } catch {
+      setOpening(false);
+      setError(SAVE_FAILED);
+    }
+  }
+
+  // After loading, the data briefly holds Ada's Fashion before the redirect lands. Don't show the warning for it.
+  if (opening) return <WelcomeLoading label="Opening the sample shop…" />;
+
+  const replacing = shop !== null || hasRecords(data);
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
+      <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-6 flex justify-center">
+          <Logo size="lg" />
+        </div>
+        {replacing ? (
+          <>
+            <h1 className="text-xl font-bold text-ink">Replace {shop?.name ?? "your records"} with the sample shop?</h1>
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+              This browser already holds your books: {countLabel(data)}. Opening Ada&apos;s Fashion deletes them from this device. This can&apos;t be undone.
+            </p>
+            {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
+            <Link href="/dashboard" className="mt-6 block w-full rounded-xl bg-brand-700 py-3.5 text-center text-base font-semibold text-white hover:bg-brand-800">
+              Keep {shop?.name ?? "my records"}
+            </Link>
+            <button type="button" onClick={open} className="mt-3 w-full rounded-xl border border-rose-200 bg-rose-50 py-3.5 text-sm font-semibold text-rose-700 hover:bg-rose-100">
+              Delete my records and open the sample
+            </button>
+          </>
+        ) : (
+          <>
+            <h1 className="text-xl font-bold text-ink">Look around a sample shop</h1>
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+              Ada&apos;s Fashion has sales, part payments, and expenses already recorded, so you can see how BizBuddy works before you enter your own.
+            </p>
+            {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
+            <button type="button" onClick={open} className="mt-6 w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white hover:bg-brand-800">
+              Open the sample shop
+            </button>
+            <Link href="/welcome" className="mt-3 block w-full rounded-xl border border-stone-200 py-3.5 text-center text-sm font-medium text-ink hover:bg-stone-50">
+              Start my own shop instead
+            </Link>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function countLabel(data: BizData) {
+  const part = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  return [part(data.sales.length, "sale"), part(data.expenses.length, "expense"), part(data.customers.length, "customer")].join(", ");
+}
+
+function Onboarding({ data }: { data: BizData }) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("welcome");
   const [ownerName, setOwnerName] = useState("");
   const [phone, setPhone] = useState("");
@@ -23,25 +108,25 @@ export default function WelcomePage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!data) return;
-    if (demo) {
-      try {
-        loadDemoData();
-        router.replace("/dashboard");
-      } catch {
-        setError("This browser couldn't save the sample shop. Check that site data is allowed, then try again.");
-      }
+    if (data.business) router.replace("/dashboard");
+  }, [data.business, router]);
+
+  if (data.business) return <WelcomeLoading />;
+
+  function openSample() {
+    // Records without a shop shouldn't exist, but if they do, send the user through the confirmation.
+    if (hasRecords(data)) {
+      router.push("/welcome?demo=1");
       return;
     }
-    if (data.business) router.replace("/dashboard");
-  }, [data, demo, router]);
-
-  if (!data || data.business || demo) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-surface">
-        <p className="text-sm text-ink-muted">{demo ? "Loading sample shop…" : "Loading…"}</p>
-      </main>
-    );
+    setSaving(true);
+    try {
+      loadDemoData();
+      router.replace("/dashboard");
+    } catch {
+      setSaving(false);
+      setError(SAVE_FAILED);
+    }
   }
 
   function continueAccount(event: FormEvent) {
@@ -93,11 +178,13 @@ export default function WelcomePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.replace("/welcome?demo=1")}
-              className="mt-3 w-full rounded-xl border border-stone-200 bg-white py-3.5 text-sm font-medium text-ink transition-colors hover:bg-stone-50"
+              onClick={openSample}
+              disabled={saving}
+              className="mt-3 w-full rounded-xl border border-stone-200 bg-white py-3.5 text-sm font-medium text-ink transition-colors hover:bg-stone-50 disabled:opacity-60"
             >
-              Try with demo data
+              {saving ? "Opening the sample shop…" : "Try with demo data"}
             </button>
+            {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
             <p className="mt-6 text-xs text-stone-400">Made for Nigerian small businesses</p>
           </div>
         )}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { paidForSale, saleBalance } from "@/shared/lib/finance";
 import { today } from "@/shared/lib/dates";
-import { formatDate, formatNaira } from "@/shared/lib/format";
+import { formatDate, formatNaira, parseNaira } from "@/shared/lib/format";
 import { recordPayment } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/shared/lib/types";
@@ -94,10 +94,9 @@ function PaymentForm({ saleId, owing, customerName }: { saleId: string; owing: n
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const cleaned = amount.replace(/,/g, "").trim();
-    const value = Number(cleaned);
-    if (!cleaned || !Number.isFinite(value) || value <= 0) {
-      setError("Enter how much they paid.");
+    const value = parseNaira(amount);
+    if (value === null || value <= 0) {
+      setError("Enter how much they paid in whole naira, like 5000.");
       return;
     }
     if (value > owing) {
@@ -130,7 +129,7 @@ function PaymentForm({ saleId, owing, customerName }: { saleId: string; owing: n
         <label htmlFor="payment-amount" className="mb-1.5 block text-sm font-medium text-ink">Amount</label>
         <div className="relative">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-muted">₦</span>
-          <input id="payment-amount" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" aria-invalid={!!error} className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-8 pr-4 text-sm text-ink outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-200" />
+          <input id="payment-amount" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" aria-invalid={!!error} className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-8 pr-4 text-sm text-ink outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-200" />
         </div>
       </div>
       <fieldset>

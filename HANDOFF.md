@@ -1,6 +1,6 @@
 # BizBuddy: Handoff
 
-_Last updated: 25 Sep 2026_
+_Last updated: 29 Sep 2026_
 
 ## Where things stand
 
@@ -34,7 +34,7 @@ There is no test runner yet. The money calculations were checked with a throwawa
 
 `/` is the public landing page. It stays visible even when a shop already exists. Every "Start your books" link goes to `/welcome`. The sample shop is `/welcome?demo=1`.
 
-`/welcome` is three steps: welcome, name and phone, then business name and type. Phone is stored on the business. If a shop already exists, `/welcome` redirects to `/dashboard`. `?demo=1` loads Ada's Fashion and goes to the dashboard. The shell still redirects to `/welcome` when there is no business. To start fresh, clear localStorage (key `bizbuddy:v1`) and open the app again.
+`/welcome` is three steps: welcome, name and phone, then business name and type. Phone is stored on the business. If a shop already exists, `/welcome` redirects to `/dashboard`. `?demo=1` never loads anything by itself: it shows a screen with an "Open the sample shop" button, and if this browser already holds a shop it asks before replacing it ("Keep <shop>" or "Delete my records and open the sample"). "Try with demo data" on the first step loads the sample directly, because no shop exists yet. The page reads `?demo=1` with `useSearchParams`, so `app/welcome/page.tsx` wraps it in `<Suspense>`; without it `npm run build` fails. The shell still redirects to `/welcome` when there is no business. To start fresh, clear localStorage (key `bizbuddy:v1`) and open the app again.
 
 Records still live in this browser. Closing the tab keeps them. Another phone, another browser, or cleared site data starts empty. There is no server yet.
 
@@ -97,6 +97,8 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 8. **Pages inside the shell use `useBiz()`** (`features/shell/hooks/use-biz.ts`), which returns `{ data, business }` and is never null. The shell renders its children only once a business exists.
 9. **Mobile navigation:** Home, Sales, **+**, Customers, Ask, as in the UX doc §6. The **+** opens a sheet with New Sale, Expense and Customer. Settings is the gear in the mobile header. Expenses has no tab; you reach it from the dashboard card or the **+** sheet. The product owner may want to revisit this.
 10. **Recent Activity** lists sales, *later* payments and expenses. A payment on the same day as its sale is shown as part of the sale, not as a separate row.
+11. **Money is whole naira.** Forms read amounts with `parseNaira()` (`shared/lib/format.ts`), which accepts "85000", "85,000" or "₦85,000" and rejects kobo. The store rejects non-integers too. Amounts are displayed rounded to whole naira, so a stored ₦4,999.50 showed as ₦5,000 and then refused a ₦5,000 payment.
+12. **Never replace records without asking.** `loadDemoData()` wipes everything. Call it only from a button, never from an effect, and confirm first when `hasRecords()` or a business exists.
 
 ## Styling rules
 

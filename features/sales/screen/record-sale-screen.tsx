@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { today } from "@/shared/lib/dates";
 import { formatNaira, parseNaira } from "@/shared/lib/format";
-import { recordSale } from "@/shared/lib/store";
+import { findCustomerByName, recordSale } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
@@ -43,7 +43,7 @@ export function RecordSalePage() {
 
   const totalNum = parseNaira(total);
   const paidNum = paid.trim() === "" ? 0 : parseNaira(paid);
-  const known = customer.trim() !== "" && data.customers.some((item) => item.name.toLowerCase() === customer.trim().toLowerCase());
+  const known = customer.trim() !== "" && findCustomerByName(data, customer) !== undefined;
   const outstanding = totalNum !== null && paidNum !== null ? totalNum - paidNum : null;
 
   function submit(event: FormEvent) {

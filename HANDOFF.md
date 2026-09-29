@@ -6,7 +6,7 @@ _Last updated: 29 Sep 2026_
 
 The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, Settings (edit business details, record counts, sample shop, delete everything), and editing or deleting sales, payments, and expenses. Every V0.1 screen exists.
 
-The next task is **tests** (Vitest). See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **polish from the review**. See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -25,12 +25,12 @@ WhatsApp is the long-term assistant (plain-language sale, expense, payment, and 
 ```bash
 cd bizbuddy-web-app
 npm run dev        # http://localhost:3000
-./node_modules/.bin/tsc --noEmit && npm run lint && npm run build
+./node_modules/.bin/tsc --noEmit && npm run lint && npm test && npm run build
 ```
 
 Use the project's TypeScript binary. `npx tsc` can install an unrelated package.
 
-There is no test runner yet. The money calculations were checked with a throwaway `tsx` script against the demo data.
+Tests use **Vitest 4** (`npm test`, or `npm run test:watch`). Test files sit next to the code they cover (`*.test.ts`): `shared/lib/{dates,format,finance,store}.test.ts` and `features/ask/lib/answer.test.ts`. They fix the clock to Tuesday 29 Sep 2026 with `vi.useFakeTimers`, because the demo shop is dated relative to today. The store tests swap in an in-memory `window.localStorage`, including one that refuses to save. Vitest 5 needs `@types/node` 22+, and this project pins 20, which is why it's on Vitest 4. Add a test with every new rule in `finance.ts` or `store.ts`.
 
 `/` is the public landing page. It stays visible even when a shop already exists. Every "Start your books" link goes to `/welcome`. The sample shop is `/welcome?demo=1`.
 
@@ -111,7 +111,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 11. **Money is whole naira.** Forms read amounts with `parseNaira()` (`shared/lib/format.ts`), which accepts "85000", "85,000" or "₦85,000" and rejects kobo. The store rejects non-integers too. Amounts are displayed rounded to whole naira, so a stored ₦4,999.50 showed as ₦5,000 and then refused a ₦5,000 payment.
 12. **Never replace records without asking.** `loadDemoData()` wipes everything. Call it only from a button, never from an effect, and confirm first when `hasRecords()` or a business exists.
 13. **A customer payment pays the oldest unpaid sale first** (`allocatePayment()` in `finance.ts`). It is saved as one `Payment` per sale, all sharing a `batchId`, and `laterPayments()` joins them back so the customer page and Recent Activity show one payment. A payment can only cover sales dated on or before the payment date (`owedOn()`). A payment from a sale page still goes to that one sale.
-14. **Customer names are unique, ignoring case and extra spaces** (`findCustomerByName()`). Record Sale reuses the existing customer; Add Customer refuses a duplicate and links to the existing one.
+14. **Customer names are unique, ignoring case and extra spaces anywhere in the name** (`findCustomerByName()`). New names are saved with spaces tidied ("Sarah  Ibrahim" becomes "Sarah Ibrahim"). Record Sale reuses the existing customer; Add Customer refuses a duplicate and links to the existing one.
 15. **Ask BizBuddy is keyword matching, not AI** (`features/ask/lib/answer.ts`). It answers the V0.1 questions in `BIZBUDDY_PLAN.md` §13: who owes me, how much a named customer owes or bought, sales, expenses, and money collected, for today, this week, this month (the default), or last month. Every number comes from `finance.ts`. Anything else gets suggested questions. The chat is not saved.
 16. **Fixing mistakes keeps the money honest.** Every delete asks first (`shared/ui/confirm-dialog.tsx`). Deleting a sale deletes its payments. A sale that received part of a split payment can't be deleted or moved to another customer until that payment is deleted, so received money never disappears silently. A sale's total can't drop below what's been paid, and its date can't be after a payment on it. A split payment is deleted whole. Payments can't be edited: delete and record again.
 
@@ -127,15 +127,14 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 
 Every V0.1 screen exists, and mistakes can be fixed. `BIZBUDDY_PLAN.md` §38 says the next move is to put it in front of real shop owners, watch them use it, and fix the biggest problems. Before that:
 
-1. **Tests.** Add Vitest and cover `finance.ts`, `dates.ts`, `features/ask/lib/answer.ts`, and the store's rules (edit and delete limits, whole naira). So far these were checked with throwaway `tsx` scripts.
-2. **Polish from the review:**
+1. **Polish from the review:**
    - on phones, the landing hero's "Paid ₦50,000" card is mostly hidden behind the "Still owes" card
    - grey text contrast: the grey first line of the landing headline, grey body text on the landing page, and the dates in the Sales list
    - customer suggestions on Record Sale can't be picked with the keyboard
    - "Record a sale" on a customer page doesn't pre-fill the customer
    - editing a customer's name or phone, and deleting a customer
-3. **Spec items still open:** the Custom date range, and an offline banner.
-4. **Accounts and a server** before shop owners rely on it day to day (see open questions).
+2. **Spec items still open:** the Custom date range, and an offline banner.
+3. **Accounts and a server** before shop owners rely on it day to day (see open questions).
 
 ## Figma Make export: known bugs (don't port these)
 

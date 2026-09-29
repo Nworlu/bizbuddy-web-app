@@ -71,7 +71,7 @@ export function createBusiness(input: { name: string; ownerName: string; phone: 
 /** Creates the customer when the name is new, then the sale, then a payment when they paid something. */
 /** The customer with this name, or a new one added to the list. Sales find customers by name. */
 function customerNamed(data: BizData, rawName: string): { customer: Customer; customers: Customer[] } {
-  const name = rawName.trim();
+  const name = tidyName(rawName);
   if (!name) throw new Error("Customer name is required");
   const existing = findCustomerByName(data, name);
   if (existing) return { customer: existing, customers: data.customers };
@@ -116,16 +116,21 @@ export function recordPayment(input: { saleId: string; amount: number; method: P
   return { outstanding: owing - input.amount };
 }
 
-/** The existing customer with this name, ignoring case and extra spaces. */
+/** A name as typed, with spaces tidied: "  Sarah   Ibrahim " becomes "Sarah Ibrahim". */
+function tidyName(name: string): string {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+/** The existing customer with this name, ignoring case and extra spaces anywhere in it. */
 export function findCustomerByName(data: BizData, name: string): Customer | undefined {
-  const wanted = name.trim().toLowerCase();
-  return data.customers.find((customer) => customer.name.trim().toLowerCase() === wanted);
+  const wanted = tidyName(name).toLowerCase();
+  return data.customers.find((customer) => tidyName(customer.name).toLowerCase() === wanted);
 }
 
 /** Adds a customer. Throws if the name is empty or already used, since sales find customers by name. */
 export function addCustomer(input: { name: string; phone: string }): Customer {
   const data = getSnapshot();
-  const name = input.name.trim();
+  const name = tidyName(input.name);
   if (!name) throw new Error("Customer name is required");
   if (findCustomerByName(data, name)) throw new Error("A customer with that name already exists");
   const customer: Customer = { id: crypto.randomUUID(), name, phone: input.phone.trim(), createdAt: new Date().toISOString() };

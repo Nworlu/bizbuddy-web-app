@@ -1,19 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { paidForSale, saleBalance } from "@/shared/lib/finance";
+import { paidForSale, paymentGroup, saleBalance, sharedPaymentsForSale } from "@/shared/lib/finance";
 import { today } from "@/shared/lib/dates";
 import { formatDate, formatNaira, parseNaira } from "@/shared/lib/format";
-import { recordPayment } from "@/shared/lib/store";
+import { deleteSale, recordPayment } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/shared/lib/types";
+import { PAYMENT_METHODS, type BizData, type PaymentMethod, type Sale } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { DeletePaymentButton } from "@/shared/ui/delete-payment-button";
 
 export function SaleDetailsPage({ id }: { id: string }) {
   const { data } = useBiz();
+  const [deleted, setDeleted] = useState(false);
   const sale = data.sales.find((item) => item.id === id);
   const customer = sale ? data.customers.find((item) => item.id === sale.customerId) : undefined;
+
+  // Just deleted: render nothing while the redirect to /sales lands, instead of flashing "not found".
+  if (deleted) return null;
 
   if (!sale) {
     return (
@@ -36,10 +43,15 @@ export function SaleDetailsPage({ id }: { id: string }) {
       <Link href="/sales" className="text-sm font-medium text-ink-muted hover:text-ink">← Back to Sales</Link>
 
       <div className="mt-4 mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">Sale</h1>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${owing === 0 ? "bg-brand-100 text-brand-800" : "bg-amber-100 text-amber-800"}`}>
-          {owing === 0 ? "Paid in full" : "Still owing"}
-        </span>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-ink">Sale</h1>
+          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${owing === 0 ? "bg-brand-100 text-brand-800" : "bg-amber-100 text-amber-800"}`}>
+            {owing === 0 ? "Paid in full" : "Still owing"}
+          </span>
+        </div>
+        <Link href={`/sales/${sale.id}/edit`} className="shrink-0 rounded-xl bg-stone-100 px-4 py-2 text-sm font-medium text-ink hover:bg-stone-200">
+          Edit
+        </Link>
       </div>
 
       <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white">
@@ -64,12 +76,22 @@ export function SaleDetailsPage({ id }: { id: string }) {
           <p className="mt-2 text-sm text-ink-muted">Nothing has been paid on this sale.</p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {payments.map((payment) => (
-              <li key={payment.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-ink-muted">{formatDate(payment.date)} · {payment.method}</span>
-                <span className="font-semibold tabular-nums text-brand-800">{formatNaira(payment.amount)}</span>
-              </li>
-            ))}
+            {payments.map((payment) => {
+              const group = paymentGroup(payment.batchId ?? payment.id, data.payments);
+              const groupTotal = group.reduce((sum, p) => sum + p.amount, 0);
+              return (
+                <li key={payment.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="min-w-0 text-ink-muted">
+                    {formatDate(payment.date)} · {payment.method}
+                    {group.length > 1 && <span className="block text-xs">Part of a {formatNaira(groupTotal)} payment</span>}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="font-semibold tabular-nums text-brand-800">{formatNaira(payment.amount)}</span>
+                    <DeletePaymentButton groupId={payment.batchId ?? payment.id} data={data} />
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -81,7 +103,57 @@ export function SaleDetailsPage({ id }: { id: string }) {
           View {customerName}
         </Link>
       )}
+
+      <DeleteSale sale={sale} data={data} customerName={customerName} onDeleted={() => setDeleted(true)} />
     </div>
+  );
+}
+
+function DeleteSale({ sale, data, customerName, onDeleted }: { sale: Sale; data: BizData; customerName: string; onDeleted: () => void }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const own = data.payments.filter((p) => p.saleId === sale.id);
+  const paid = own.reduce((sum, p) => sum + p.amount, 0);
+  const shared = sharedPaymentsForSale(sale.id, data.payments);
+  const products = new Map(data.sales.map((s) => [s.id, s.product]));
+
+  function confirm() {
+    try {
+      deleteSale(sale.id);
+      onDeleted();
+      showToast("Sale deleted.");
+      router.push("/sales");
+    } catch {
+      setError("This browser couldn't delete the sale. Try again.");
+    }
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => { setError(null); setOpen(true); }} className="mt-6 w-full rounded-xl py-3 text-sm font-medium text-rose-700 hover:bg-rose-50">
+        Delete this sale
+      </button>
+      {shared.length > 0 ? (
+        <ConfirmDialog open={open} title="This sale can't be deleted yet" onCancel={() => setOpen(false)}>
+          {shared.map((group) => (
+            <p key={group.id}>
+              A {formatNaira(group.amount)} payment on {formatDate(group.date)} paid this sale and{" "}
+              {group.parts.filter((part) => part.saleId !== sale.id).map((part) => products.get(part.saleId) ?? "another sale").join(" and ")}.
+            </p>
+          ))}
+          <p>Delete that payment first (from the payments list above), then delete this sale.</p>
+        </ConfirmDialog>
+      ) : (
+        <ConfirmDialog open={open} title="Delete this sale?" confirmLabel="Delete sale" onConfirm={confirm} onCancel={() => setOpen(false)} error={error}>
+          <p>
+            This removes the {formatNaira(sale.totalAmount)} sale of {sale.product} to {customerName}
+            {own.length > 0 ? `, and the ${formatNaira(paid)} paid on it (${own.length} payment${own.length === 1 ? "" : "s"})` : ""}.
+          </p>
+          <p>It can&apos;t be undone.</p>
+        </ConfirmDialog>
+      )}
+    </>
   );
 }
 

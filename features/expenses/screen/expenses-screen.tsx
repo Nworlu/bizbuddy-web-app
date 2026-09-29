@@ -82,15 +82,17 @@ export function ExpensesPage() {
           ) : (
             <ul className="space-y-2">
               {visible.map((expense) => (
-                <li key={expense.id} className="flex items-start justify-between gap-3 rounded-xl border border-stone-200 bg-white p-4">
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-ink">{expense.category}</span>
-                    {expense.description && <span className="mt-0.5 block truncate text-xs text-ink-muted">{expense.description}</span>}
-                    <span className="mt-0.5 block text-xs text-ink-muted">{formatDate(expense.date)}</span>
-                  </span>
-                  <span className="shrink-0 text-sm font-bold tabular-nums text-rose-700">
-                    <span className="sr-only">spent </span>−{formatNaira(expense.amount)}
-                  </span>
+                <li key={expense.id}>
+                  <Link href={`/expenses/${expense.id}`} className="flex items-start justify-between gap-3 rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-ink">{expense.category}</span>
+                      {expense.description && <span className="mt-0.5 block truncate text-xs text-ink-muted">{expense.description}</span>}
+                      <span className="mt-0.5 block text-xs text-ink-muted">{formatDate(expense.date)}</span>
+                    </span>
+                    <span className="shrink-0 text-sm font-bold tabular-nums text-rose-700">
+                      <span className="sr-only">spent </span>−{formatNaira(expense.amount)}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>

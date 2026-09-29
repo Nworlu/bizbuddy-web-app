@@ -4,17 +4,39 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { today } from "@/shared/lib/dates";
-import { formatNaira, parseNaira } from "@/shared/lib/format";
-import { recordExpense } from "@/shared/lib/store";
+import { formatDate, formatNaira, parseNaira } from "@/shared/lib/format";
+import { deleteExpense, recordExpense, updateExpense } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
-import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/shared/lib/types";
+import { EXPENSE_CATEGORIES, type Expense, type ExpenseCategory } from "@/shared/lib/types";
+import { useBiz } from "@/features/shell/hooks/use-biz";
+import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 
-export function RecordExpensePage() {
+export function EditExpensePage({ id }: { id: string }) {
+  const { data } = useBiz();
+  const [deleted, setDeleted] = useState(false);
+  const expense = data.expenses.find((e) => e.id === id);
+  // Just deleted: render nothing while the redirect lands, instead of flashing "not found".
+  if (deleted) return null;
+  if (!expense) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-6 md:px-8">
+        <Link href="/expenses" className="text-sm font-medium text-ink-muted hover:text-ink">← Back to Expenses</Link>
+        <p className="py-12 text-center text-sm text-ink-muted">That expense is not in this shop.</p>
+      </div>
+    );
+  }
+  return <RecordExpensePage expense={expense} onDeleted={() => setDeleted(true)} />;
+}
+
+/** Records a new expense, or edits `expense` when given. */
+export function RecordExpensePage({ expense, onDeleted }: { expense?: Expense; onDeleted?: () => void } = {}) {
   const router = useRouter();
-  const [category, setCategory] = useState<ExpenseCategory>("Stock");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState(today());
+  const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? "Stock");
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
+  const [description, setDescription] = useState(expense?.description ?? "");
+  const [date, setDate] = useState(expense?.date ?? today());
+  const [confirming, setConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ amount?: string; date?: string; form?: string }>({});
   const [saving, setSaving] = useState(false);
 
@@ -30,9 +52,15 @@ export function RecordExpensePage() {
 
     setSaving(true);
     try {
-      recordExpense({ category, amount: value, description, date });
-      showToast(`Expense recorded. ${category}: ${formatNaira(value)}.`);
-      router.push("/dashboard");
+      if (expense) {
+        updateExpense({ expenseId: expense.id, category, amount: value, description, date });
+        showToast("Expense updated.");
+        router.push("/expenses");
+      } else {
+        recordExpense({ category, amount: value, description, date });
+        showToast(`Expense recorded. ${category}: ${formatNaira(value)}.`);
+        router.push("/dashboard");
+      }
     } catch {
       setSaving(false);
       setErrors({ form: "This browser couldn't save the expense. Check that site data is allowed, then try again." });
@@ -42,8 +70,8 @@ export function RecordExpensePage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-6 md:px-8 md:py-8">
       <Link href="/expenses" className="text-sm font-medium text-ink-muted hover:text-ink">← Back to Expenses</Link>
-      <h1 className="mt-4 text-2xl font-bold text-ink">Record Expense</h1>
-      <p className="mt-1 text-sm text-ink-muted">What did you spend money on?</p>
+      <h1 className="mt-4 text-2xl font-bold text-ink">{expense ? "Edit expense" : "Record Expense"}</h1>
+      <p className="mt-1 text-sm text-ink-muted">{expense ? `Recorded for ${formatDate(expense.date)}.` : "What did you spend money on?"}</p>
 
       <form onSubmit={submit} className="mt-6 space-y-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6" noValidate>
         <fieldset>
@@ -101,9 +129,36 @@ export function RecordExpensePage() {
         {errors.form && <p role="alert" className="text-sm text-rose-700">{errors.form}</p>}
 
         <button type="submit" disabled={saving} className="w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60">
-          {saving ? "Saving…" : "Save expense"}
+          {saving ? "Saving…" : expense ? "Save changes" : "Save expense"}
         </button>
       </form>
+
+      {expense && (
+        <>
+          <button type="button" onClick={() => { setDeleteError(null); setConfirming(true); }} className="mt-6 w-full rounded-xl py-3 text-sm font-medium text-rose-700 hover:bg-rose-50">
+            Delete this expense
+          </button>
+          <ConfirmDialog
+            open={confirming}
+            title="Delete this expense?"
+            confirmLabel="Delete expense"
+            onCancel={() => setConfirming(false)}
+            error={deleteError}
+            onConfirm={() => {
+              try {
+                deleteExpense(expense.id);
+                onDeleted?.();
+                showToast("Expense deleted.");
+                router.push("/expenses");
+              } catch {
+                setDeleteError("This browser couldn't delete the expense. Try again.");
+              }
+            }}
+          >
+            <p>This removes the {formatNaira(expense.amount)} {expense.category.toLowerCase()} expense from {formatDate(expense.date)}{expense.description ? ` (${expense.description})` : ""}. It can&apos;t be undone.</p>
+          </ConfirmDialog>
+        </>
+      )}
     </div>
   );
 }

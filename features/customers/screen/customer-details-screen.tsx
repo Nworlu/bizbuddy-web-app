@@ -9,6 +9,7 @@ import { recordCustomerPayment } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { PAYMENT_METHODS, type BizData, type Customer, type PaymentMethod } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { DeletePaymentButton } from "@/shared/ui/delete-payment-button";
 import { CustomerAvatar } from "../components/customer-avatar";
 
 export function CustomerDetailsPage({ id }: { id: string }) {
@@ -245,7 +246,10 @@ function HistoryRow({ event, data }: { event: CustomerEvent; data: BizData }) {
             For {payment.parts.map((part) => products.get(part.saleId) ?? "a sale").join(", ")}
           </span>
         </span>
-        <span className="shrink-0 text-sm font-bold tabular-nums text-brand-800">+{formatNaira(payment.amount)}</span>
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-sm font-bold tabular-nums text-brand-800">+{formatNaira(payment.amount)}</span>
+          <DeletePaymentButton groupId={payment.id} data={data} />
+        </span>
       </span>
     </li>
   );

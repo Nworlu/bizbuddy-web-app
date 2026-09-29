@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { resetAll, updateBusiness } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { BUSINESS_TYPES, type BizData, type Business, type BusinessType } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 
 export function SettingsPage() {
   const { data, business } = useBiz();
@@ -128,7 +129,7 @@ function DataSection({ data }: { data: BizData }) {
 }
 
 function DangerSection({ data, business }: { data: BizData; business: Business }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -148,35 +149,24 @@ function DangerSection({ data, business }: { data: BizData; business: Business }
           <span className="block text-sm font-medium text-ink">Open the sample shop</span>
           <span className="block text-xs text-ink-muted">Look around Ada&apos;s Fashion. You&apos;ll be asked before your records are replaced.</span>
         </Link>
-        <button type="button" onClick={() => { setError(null); dialog.current?.showModal(); }} className="block w-full rounded-xl bg-rose-50 px-4 py-3 text-left hover:bg-rose-100">
+        <button type="button" onClick={() => { setError(null); setConfirming(true); }} className="block w-full rounded-xl bg-rose-50 px-4 py-3 text-left hover:bg-rose-100">
           <span className="block text-sm font-medium text-rose-700">Delete everything</span>
           <span className="block text-xs text-rose-700/80">Remove {business.name} and all its records from this device.</span>
         </button>
       </div>
 
-      <dialog
-        ref={dialog}
-        aria-labelledby="reset-title"
-        aria-describedby="reset-body"
-        onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}
-        className="m-auto w-[min(26rem,calc(100%-2rem))] rounded-2xl bg-white p-0 backdrop:bg-black/40"
+      <ConfirmDialog
+        open={confirming}
+        title={`Delete ${business.name}?`}
+        confirmLabel="Delete everything"
+        onConfirm={reset}
+        onCancel={() => setConfirming(false)}
+        error={error}
       >
-        <div className="p-6">
-          <h2 id="reset-title" className="text-lg font-bold text-ink">Delete {business.name}?</h2>
-          <p id="reset-body" className="mt-2 text-sm leading-relaxed text-ink-muted">
-            This deletes {count(data.sales.length, "sale")}, {count(data.payments.length, "payment")}, {count(data.expenses.length, "expense")}, and {count(data.customers.length, "customer")} from this device. It can&apos;t be undone.
-          </p>
-          {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
-          <div className="mt-6 flex gap-2">
-            <button type="button" autoFocus onClick={() => dialog.current?.close()} className="flex-1 rounded-xl bg-stone-100 py-3 text-sm font-medium text-ink hover:bg-stone-200">
-              Cancel
-            </button>
-            <button type="button" onClick={reset} className="flex-1 rounded-xl bg-rose-700 py-3 text-sm font-semibold text-white hover:bg-rose-800">
-              Delete everything
-            </button>
-          </div>
-        </div>
-      </dialog>
+        <p>
+          This deletes {count(data.sales.length, "sale")}, {count(data.payments.length, "payment")}, {count(data.expenses.length, "expense")}, and {count(data.customers.length, "customer")} from this device. It can&apos;t be undone.
+        </p>
+      </ConfirmDialog>
     </Section>
   );
 }

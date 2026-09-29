@@ -4,9 +4,9 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, and Settings (edit business details, record counts, sample shop, delete everything). Every V0.1 screen exists.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, Settings (edit business details, record counts, sample shop, delete everything), and editing or deleting sales, payments, and expenses. Every V0.1 screen exists.
 
-The next task is **fixing mistakes**: editing and deleting sales, payments, and expenses. See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **tests** (Vitest). See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -57,12 +57,14 @@ app/
   (app)/dashboard/page.tsx     dashboard  (not / — that URL is the landing page)
   (app)/sales/page.tsx         sales list
   (app)/sales/new/page.tsx     Record Sale
-  (app)/sales/[id]/page.tsx    sale details and record payment
+  (app)/sales/[id]/page.tsx    sale details: record or delete a payment, delete the sale
+  (app)/sales/[id]/edit/page.tsx  edit a sale (customer, product, total, date)
   (app)/customers/page.tsx     customers list, who owes what
   (app)/customers/[id]/page.tsx  customer page: totals, history, record payment (oldest sale first)
   (app)/customers/new/page.tsx add customer
   (app)/expenses/page.tsx      expenses list: period filter, total, per-category totals, search
   (app)/expenses/new/page.tsx  Record Expense
+  (app)/expenses/[id]/page.tsx edit or delete an expense (same form as Record Expense)
   (app)/ask/page.tsx           Ask BizBuddy chat; answers ?q= from the dashboard (Suspense for useSearchParams)
   (app)/settings/page.tsx      Settings: business details, record counts, sample shop, delete everything
 
@@ -71,17 +73,17 @@ features/
   onboarding/                  welcome screen
   shell/                       app shell, useBiz()
   dashboard/                   dashboard screen
-  sales/                       sales list, Record Sale, sale details
+  sales/                       sales list, Record Sale, sale details, edit sale
   customers/                   customers list, customer page, add customer, CustomerAvatar
   expenses/                    expenses list, Record Expense
   ask/                         chat screen; lib/answer.ts matches the question and builds the answer
   settings/                    settings screen
 
 shared/
-  ui/                          logo, icons, period-filter  (used by more than one feature)
+  ui/                          logo, icons, period-filter, confirm-dialog, delete-payment-button  (used by more than one feature)
   lib/
     types.ts                   data model
-    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll()
+    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll() + updateSale() + deleteSale() + deletePayment() + updateExpense() + deleteExpense()
     toast.ts                   showToast(); the shell listens and shows it
     finance.ts                 ALL money calculations (pure functions)
     dates.ts                   local-date helpers, period ranges
@@ -111,6 +113,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 13. **A customer payment pays the oldest unpaid sale first** (`allocatePayment()` in `finance.ts`). It is saved as one `Payment` per sale, all sharing a `batchId`, and `laterPayments()` joins them back so the customer page and Recent Activity show one payment. A payment can only cover sales dated on or before the payment date (`owedOn()`). A payment from a sale page still goes to that one sale.
 14. **Customer names are unique, ignoring case and extra spaces** (`findCustomerByName()`). Record Sale reuses the existing customer; Add Customer refuses a duplicate and links to the existing one.
 15. **Ask BizBuddy is keyword matching, not AI** (`features/ask/lib/answer.ts`). It answers the V0.1 questions in `BIZBUDDY_PLAN.md` §13: who owes me, how much a named customer owes or bought, sales, expenses, and money collected, for today, this week, this month (the default), or last month. Every number comes from `finance.ts`. Anything else gets suggested questions. The chat is not saved.
+16. **Fixing mistakes keeps the money honest.** Every delete asks first (`shared/ui/confirm-dialog.tsx`). Deleting a sale deletes its payments. A sale that received part of a split payment can't be deleted or moved to another customer until that payment is deleted, so received money never disappears silently. A sale's total can't drop below what's been paid, and its date can't be after a payment on it. A split payment is deleted whole. Payments can't be edited: delete and record again.
 
 ## Styling rules
 
@@ -122,18 +125,17 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 
 ## Next steps
 
-Every V0.1 screen now exists. `BIZBUDDY_PLAN.md` §38 says the next move is to put it in front of real shop owners, watch them use it, and fix the biggest problems. Before that:
+Every V0.1 screen exists, and mistakes can be fixed. `BIZBUDDY_PLAN.md` §38 says the next move is to put it in front of real shop owners, watch them use it, and fix the biggest problems. Before that:
 
-1. **Fixing mistakes.** A wrong sale, payment, or expense can't be edited or deleted yet, so one typo stays in the books for good. Add edit and delete for sales, payments, and expenses, with confirmation (UX spec §27). Deleting a sale must also delete its payments, and editing a sale total must not drop below what has been paid.
-2. **Tests.** Add Vitest and cover `finance.ts`, `dates.ts`, and `features/ask/lib/answer.ts`. So far these were checked with throwaway `tsx` scripts.
-3. **Polish from the review:**
+1. **Tests.** Add Vitest and cover `finance.ts`, `dates.ts`, `features/ask/lib/answer.ts`, and the store's rules (edit and delete limits, whole naira). So far these were checked with throwaway `tsx` scripts.
+2. **Polish from the review:**
    - on phones, the landing hero's "Paid ₦50,000" card is mostly hidden behind the "Still owes" card
    - grey text contrast: the grey first line of the landing headline, grey body text on the landing page, and the dates in the Sales list
    - customer suggestions on Record Sale can't be picked with the keyboard
    - "Record a sale" on a customer page doesn't pre-fill the customer
-   - editing a customer's name or phone
-4. **Spec items still open:** the Custom date range, and an offline banner.
-5. **Accounts and a server** before shop owners rely on it day to day (see open questions).
+   - editing a customer's name or phone, and deleting a customer
+3. **Spec items still open:** the Custom date range, and an offline banner.
+4. **Accounts and a server** before shop owners rely on it day to day (see open questions).
 
 ## Figma Make export: known bugs (don't port these)
 

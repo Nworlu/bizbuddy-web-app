@@ -119,6 +119,27 @@ export function laterPayments(data: BizData, payments = data.payments): PaymentG
   return [...groups.values()];
 }
 
+/**
+ * The payment (single or split) with this id: a batchId, or a lone payment's own id.
+ * Deleting a payment always deletes the whole group, never part of a split.
+ */
+export function paymentGroup(groupId: string, payments: Payment[]): Payment[] {
+  return payments.filter((p) => (p.batchId ?? p.id) === groupId);
+}
+
+/** Split payments that paid this sale and other sales too. Such a sale can't be deleted or moved to another customer until they are. */
+export function sharedPaymentsForSale(saleId: string, payments: Payment[]): PaymentGroup[] {
+  const batchIds = new Set(payments.filter((p) => p.saleId === saleId && p.batchId).map((p) => p.batchId!));
+  const groups: PaymentGroup[] = [];
+  for (const id of batchIds) {
+    const parts = paymentGroup(id, payments);
+    if (parts.some((p) => p.saleId !== saleId)) {
+      groups.push({ id, customerId: parts[0].customerId, date: parts[0].date, createdAt: parts[0].createdAt, method: parts[0].method, amount: sum(parts.map((p) => p.amount)), parts: parts.map((p) => ({ saleId: p.saleId, amount: p.amount })) });
+    }
+  }
+  return groups;
+}
+
 export type CustomerEvent =
   | { kind: "sale"; id: string; date: LocalDate; createdAt: string; sale: Sale; paid: number; balance: number }
   | { kind: "payment"; id: string; date: LocalDate; createdAt: string; payment: PaymentGroup };

@@ -6,7 +6,7 @@
 
 import { useSyncExternalStore } from "react";
 import { demoData } from "./demo";
-import { allocatePayment, saleBalance } from "./finance";
+import { allocatePayment, paymentGroup, saleBalance, sharedPaymentsForSale } from "./finance";
 import type { BizData, BusinessType, Customer, Expense, ExpenseCategory, LocalDate, Payment, PaymentMethod } from "./types";
 
 const STORAGE_KEY = "bizbuddy:v1";
@@ -69,6 +69,16 @@ export function createBusiness(input: { name: string; ownerName: string; phone: 
 }
 
 /** Creates the customer when the name is new, then the sale, then a payment when they paid something. */
+/** The customer with this name, or a new one added to the list. Sales find customers by name. */
+function customerNamed(data: BizData, rawName: string): { customer: Customer; customers: Customer[] } {
+  const name = rawName.trim();
+  if (!name) throw new Error("Customer name is required");
+  const existing = findCustomerByName(data, name);
+  if (existing) return { customer: existing, customers: data.customers };
+  const customer: Customer = { id: crypto.randomUUID(), name, phone: "", createdAt: new Date().toISOString() };
+  return { customer, customers: [...data.customers, customer] };
+}
+
 /** Changes the shop's details. The records stay as they are. */
 export function updateBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType }) {
   const data = getSnapshot();
@@ -86,11 +96,8 @@ export function recordSale(input: { customerName: string; product: string; total
   if (!isWholeNaira(input.totalAmount) || input.totalAmount <= 0) throw new Error("Sale amount must be whole naira above 0");
   if (!isWholeNaira(input.amountPaid) || input.amountPaid < 0 || input.amountPaid > input.totalAmount) throw new Error("Amount paid must be whole naira, up to the sale amount");
   const data = getSnapshot();
-  const name = input.customerName.trim();
-  const existing = findCustomerByName(data, name);
-  const customer = existing ?? { id: crypto.randomUUID(), name, phone: "", createdAt: new Date().toISOString() };
+  const { customer, customers } = customerNamed(data, input.customerName);
   const saleId = crypto.randomUUID();
-  const customers = existing ? data.customers : [...data.customers, customer];
   const sales = [...data.sales, { id: saleId, customerId: customer.id, product: input.product.trim(), totalAmount: input.totalAmount, date: input.date, createdAt: new Date().toISOString() }];
   const payments = input.amountPaid > 0 ? [...data.payments, { id: crypto.randomUUID(), saleId, customerId: customer.id, amount: input.amountPaid, method: input.method, date: input.date, createdAt: new Date().toISOString() }] : data.payments;
   commit({ ...data, customers, sales, payments });
@@ -157,6 +164,58 @@ export function recordExpense(input: { category: ExpenseCategory; amount: number
   const expense: Expense = { id: crypto.randomUUID(), category: input.category, amount: input.amount, description: input.description.trim(), date: input.date, createdAt: new Date().toISOString() };
   commit({ ...data, expenses: [...data.expenses, expense] });
   return expense;
+}
+
+/**
+ * Changes a sale. The total can't drop below what has been paid, and the date can't be after a payment on it.
+ * Moving the sale to another customer moves its payments too, unless a split payment also paid other sales.
+ */
+export function updateSale(input: { saleId: string; customerName: string; product: string; totalAmount: number; date: LocalDate }) {
+  const data = getSnapshot();
+  const sale = data.sales.find((item) => item.id === input.saleId);
+  if (!sale) throw new Error("Sale not found");
+  const own = data.payments.filter((p) => p.saleId === sale.id);
+  const paid = own.reduce((sum, p) => sum + p.amount, 0);
+  if (!isWholeNaira(input.totalAmount) || input.totalAmount <= 0 || input.totalAmount < paid) throw new Error("Sale total must be whole naira and at least what has been paid");
+  if (!input.product.trim()) throw new Error("Product is required");
+  if (own.some((p) => p.date < input.date)) throw new Error("Sale date can't be after a payment on it");
+  const { customer, customers } = customerNamed(data, input.customerName);
+  if (customer.id !== sale.customerId && sharedPaymentsForSale(sale.id, data.payments).length > 0) throw new Error("A split payment also paid other sales for this customer");
+  commit({
+    ...data,
+    customers,
+    sales: data.sales.map((item) => (item.id === sale.id ? { ...item, customerId: customer.id, product: input.product.trim(), totalAmount: input.totalAmount, date: input.date } : item)),
+    payments: data.payments.map((p) => (p.saleId === sale.id ? { ...p, customerId: customer.id } : p)),
+  });
+}
+
+/** Deletes a sale and the payments on it. Refuses when a split payment also paid other sales: delete that payment first. */
+export function deleteSale(saleId: string) {
+  const data = getSnapshot();
+  if (sharedPaymentsForSale(saleId, data.payments).length > 0) throw new Error("A split payment also paid other sales");
+  commit({ ...data, sales: data.sales.filter((s) => s.id !== saleId), payments: data.payments.filter((p) => p.saleId !== saleId) });
+}
+
+/** Deletes a payment. A split payment is deleted whole, from every sale it paid. */
+export function deletePayment(groupId: string) {
+  const data = getSnapshot();
+  if (paymentGroup(groupId, data.payments).length === 0) throw new Error("Payment not found");
+  commit({ ...data, payments: data.payments.filter((p) => (p.batchId ?? p.id) !== groupId) });
+}
+
+export function updateExpense(input: { expenseId: string; category: ExpenseCategory; amount: number; description: string; date: LocalDate }) {
+  if (!isWholeNaira(input.amount) || input.amount <= 0) throw new Error("Expense must be whole naira above 0");
+  const data = getSnapshot();
+  if (!data.expenses.some((e) => e.id === input.expenseId)) throw new Error("Expense not found");
+  commit({
+    ...data,
+    expenses: data.expenses.map((e) => (e.id === input.expenseId ? { ...e, category: input.category, amount: input.amount, description: input.description.trim(), date: input.date } : e)),
+  });
+}
+
+export function deleteExpense(expenseId: string) {
+  const data = getSnapshot();
+  commit({ ...data, expenses: data.expenses.filter((e) => e.id !== expenseId) });
 }
 
 /** Replaces all existing records with the sample business. Callers must confirm first if data exists. */

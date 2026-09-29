@@ -4,9 +4,9 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, and Customers (list, customer page with Record Payment, Add Customer). Expenses, Ask BizBuddy, and settings are still placeholders.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), and Expenses (list with period filter and category totals, Record Expense). Ask BizBuddy and settings are still placeholders.
 
-The next task is **Expenses**: Record Expense (`/expenses/new`) and the Expenses list (`/expenses`). The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **Ask BizBuddy** (`/ask`). The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -61,7 +61,9 @@ app/
   (app)/customers/page.tsx     customers list, who owes what
   (app)/customers/[id]/page.tsx  customer page: totals, history, record payment (oldest sale first)
   (app)/customers/new/page.tsx add customer
-  (app)/{expenses,ask,settings}/…   ComingSoon
+  (app)/expenses/page.tsx      expenses list: period filter, total, per-category totals, search
+  (app)/expenses/new/page.tsx  Record Expense
+  (app)/{ask,settings}/…       ComingSoon
 
 features/
   marketing/                   landing screen, FAQ, legal shell
@@ -70,13 +72,14 @@ features/
   dashboard/                   dashboard screen
   sales/                       sales list, Record Sale, sale details
   customers/                   customers list, customer page, add customer, CustomerAvatar
-  expenses, ask, settings/     screen placeholders only
+  expenses/                    expenses list, Record Expense
+  ask, settings/               screen placeholders only
 
 shared/
-  ui/                          logo, icons, coming-soon  (used by more than one feature)
+  ui/                          logo, icons, coming-soon, period-filter  (used by more than one feature)
   lib/
     types.ts                   data model
-    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment()
+    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense()
     toast.ts                   showToast(); the shell listens and shows it
     finance.ts                 ALL money calculations (pure functions)
     dates.ts                   local-date helpers, period ranges
@@ -116,10 +119,10 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 
 ## Next steps
 
-1. **Record Expense and the Expenses list.** `EXPENSE_CATEGORIES` and the `Expense` type already exist; add `recordExpense()` to the store with the whole-naira check. The dashboard Expenses card and Recent Activity already read expenses.
-2. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
-3. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
-4. **Remaining work from the spec:**
+1. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
+2. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
+3. **Remaining work from the spec:**
+   - editing or deleting an expense
    - "Record a sale" on a customer page doesn't pre-fill the customer yet
    - editing a customer's name or phone
    - the Custom date range

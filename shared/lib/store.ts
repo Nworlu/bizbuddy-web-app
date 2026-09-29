@@ -7,7 +7,7 @@
 import { useSyncExternalStore } from "react";
 import { demoData } from "./demo";
 import { allocatePayment, saleBalance } from "./finance";
-import type { BizData, BusinessType, Customer, LocalDate, Payment, PaymentMethod } from "./types";
+import type { BizData, BusinessType, Customer, Expense, ExpenseCategory, LocalDate, Payment, PaymentMethod } from "./types";
 
 const STORAGE_KEY = "bizbuddy:v1";
 
@@ -136,6 +136,14 @@ export function recordCustomerPayment(input: { customerId: string; amount: numbe
   }));
   commit({ ...data, payments: [...data.payments, ...payments] });
   return { parts };
+}
+
+export function recordExpense(input: { category: ExpenseCategory; amount: number; description: string; date: LocalDate }): Expense {
+  if (!isWholeNaira(input.amount) || input.amount <= 0) throw new Error("Expense must be whole naira above 0");
+  const data = getSnapshot();
+  const expense: Expense = { id: crypto.randomUUID(), category: input.category, amount: input.amount, description: input.description.trim(), date: input.date, createdAt: new Date().toISOString() };
+  commit({ ...data, expenses: [...data.expenses, expense] });
+  return expense;
 }
 
 /** Replaces all existing records with the sample business. Callers must confirm first if data exists. */

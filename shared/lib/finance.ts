@@ -2,7 +2,7 @@
 // They are pure and deterministic: no AI, no hidden state.
 
 import { inRange, type DateRange } from "./dates";
-import type { BizData, Customer, LocalDate, Payment, PaymentMethod, Sale } from "./types";
+import type { BizData, Customer, Expense, ExpenseCategory, LocalDate, Payment, PaymentMethod, Sale } from "./types";
 
 const sum = (values: number[]) => values.reduce((total, v) => total + v, 0);
 
@@ -147,6 +147,27 @@ export function periodSummary(data: BizData, range: DateRange): PeriodSummary {
     sales: sum(data.sales.filter((s) => inRange(s.date, range)).map((s) => s.totalAmount)),
     collected: sum(data.payments.filter((p) => inRange(p.date, range)).map((p) => p.amount)),
     expenses: sum(data.expenses.filter((e) => inRange(e.date, range)).map((e) => e.amount)),
+  };
+}
+
+export interface ExpenseSummary {
+  /** Expenses in the period, newest first. */
+  expenses: Expense[];
+  total: number;
+  /** Spending per category in the period, largest first. */
+  byCategory: { category: ExpenseCategory; amount: number }[];
+}
+
+export function expenseSummary(data: BizData, range: DateRange): ExpenseSummary {
+  const expenses = data.expenses
+    .filter((e) => inRange(e.date, range))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const totals = new Map<ExpenseCategory, number>();
+  for (const e of expenses) totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
+  return {
+    expenses,
+    total: sum(expenses.map((e) => e.amount)),
+    byCategory: [...totals].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
   };
 }
 

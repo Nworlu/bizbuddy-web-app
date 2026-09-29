@@ -9,6 +9,7 @@ import { formatDate, formatNaira, greeting } from "@/shared/lib/format";
 import { hasRecords } from "@/shared/lib/store";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ArrowDownIcon, ArrowUpIcon, AskIcon, CheckIcon, ChevronRightIcon, PlusIcon } from "@/shared/ui/icons";
+import { PeriodFilter } from "@/shared/ui/period-filter";
 import { SUGGESTED_QUESTIONS } from "../content/suggested-questions";
 
 export function Dashboard() {
@@ -39,21 +40,7 @@ export function Dashboard() {
         </Link>
       </div>
 
-      <div role="group" aria-label="Time period" className="-mx-4 mb-6 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
-        {PERIODS.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            aria-pressed={period === p.key}
-            onClick={() => setPeriod(p.key)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-              period === p.key ? "bg-brand-700 text-white" : "border border-stone-200 bg-white text-ink-muted hover:border-stone-300 hover:text-ink"
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <PeriodFilter value={period} onChange={setPeriod} className="mb-6" />
 
       <section aria-label="Summary" className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard href="/sales" label="Sales" value={summary.sales} accent="border-t-brand-500" tone="text-brand-700" />

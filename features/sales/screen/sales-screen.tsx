@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { paidForSale, saleBalance } from "@/shared/lib/finance";
 import { formatDate, formatNaira } from "@/shared/lib/format";
 import { useBiz } from "@/features/shell/hooks/use-biz";
-import { PlusIcon } from "@/shared/ui/icons";
+import { PlusIcon, SearchIcon } from "@/shared/ui/icons";
 
 export function SalesPage() {
   const { data } = useBiz();
@@ -56,7 +56,7 @@ export function SalesPage() {
 
       <div className="relative mb-4">
         <label htmlFor="sale-search" className="sr-only">Search sales</label>
-        <SearchIcon />
+        <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
         <input
           id="sale-search"
           type="search"
@@ -107,13 +107,5 @@ export function SalesPage() {
         </ul>
       )}
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
   );
 }

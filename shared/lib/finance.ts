@@ -2,9 +2,11 @@
 // They are pure and deterministic: no AI, no hidden state.
 
 import { inRange, type DateRange } from "./dates";
-import type { BizData, Customer, Payment, Sale } from "./types";
+import type { BizData, Customer, LocalDate, Payment, PaymentMethod, Sale } from "./types";
 
 const sum = (values: number[]) => values.reduce((total, v) => total + v, 0);
+
+const oldestFirst = (a: Sale, b: Sale) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt);
 
 export function paidForSale(saleId: string, payments: Payment[]): number {
   return sum(payments.filter((p) => p.saleId === saleId).map((p) => p.amount));
@@ -42,6 +44,96 @@ export function customersOwing(data: BizData): OwingCustomer[] {
     .sort((a, b) => b.balance - a.balance);
 }
 
+/** Every customer with their balance: those who owe first (largest first), then everyone else by name. */
+export function customersWithBalances(data: BizData): OwingCustomer[] {
+  return data.customers
+    .map((customer) => ({ customer, balance: customerTotals(customer.id, data).balance }))
+    .sort((a, b) => b.balance - a.balance || a.customer.name.localeCompare(b.customer.name));
+}
+
+/** A customer's unpaid sales made on or before `date`, oldest first. */
+export function openSales(customerId: string, data: BizData, date: LocalDate): Sale[] {
+  return data.sales
+    .filter((s) => s.customerId === customerId && s.date <= date && saleBalance(s, data.payments) > 0)
+    .sort(oldestFirst);
+}
+
+/** What the customer owed on `date`. A payment can't cover a sale that hadn't happened yet. */
+export function owedOn(customerId: string, data: BizData, date: LocalDate): number {
+  return sum(openSales(customerId, data, date).map((s) => saleBalance(s, data.payments)));
+}
+
+export interface Allocation {
+  sale: Sale;
+  amount: number;
+  /** True when this part pays the sale off completely. */
+  clears: boolean;
+}
+
+/**
+ * Splits one payment from a customer across their unpaid sales, oldest first.
+ * Returns null when the amount is more than they owed on that date.
+ */
+export function allocatePayment(customerId: string, amount: number, date: LocalDate, data: BizData): Allocation[] | null {
+  let left = amount;
+  const parts: Allocation[] = [];
+  for (const sale of openSales(customerId, data, date)) {
+    if (left === 0) break;
+    const owing = saleBalance(sale, data.payments);
+    const part = Math.min(owing, left);
+    parts.push({ sale, amount: part, clears: part === owing });
+    left -= part;
+  }
+  return left > 0 ? null : parts;
+}
+
+export interface PaymentGroup {
+  id: string;
+  customerId: string;
+  date: LocalDate;
+  createdAt: string;
+  method: PaymentMethod;
+  amount: number;
+  /** The sales this payment went to, with how much each received. */
+  parts: { saleId: string; amount: number }[];
+}
+
+/**
+ * Payments as the customer made them: parts of one split payment are joined back together.
+ * Money paid at the moment of a sale is part of that sale, so it is left out.
+ */
+export function laterPayments(data: BizData, payments = data.payments): PaymentGroup[] {
+  const saleDates = new Map(data.sales.map((s) => [s.id, s.date]));
+  const groups = new Map<string, PaymentGroup>();
+  for (const p of payments) {
+    if (!p.batchId && saleDates.get(p.saleId) === p.date) continue;
+    const key = p.batchId ?? p.id;
+    const group = groups.get(key);
+    if (group) {
+      group.amount += p.amount;
+      group.parts.push({ saleId: p.saleId, amount: p.amount });
+    } else {
+      groups.set(key, { id: key, customerId: p.customerId, date: p.date, createdAt: p.createdAt, method: p.method, amount: p.amount, parts: [{ saleId: p.saleId, amount: p.amount }] });
+    }
+  }
+  return [...groups.values()];
+}
+
+export type CustomerEvent =
+  | { kind: "sale"; id: string; date: LocalDate; createdAt: string; sale: Sale; paid: number; balance: number }
+  | { kind: "payment"; id: string; date: LocalDate; createdAt: string; payment: PaymentGroup };
+
+/** A customer's sales and later payments, newest first. */
+export function customerHistory(customerId: string, data: BizData): CustomerEvent[] {
+  const sales = data.sales
+    .filter((s) => s.customerId === customerId)
+    .map((sale): CustomerEvent => ({ kind: "sale", id: sale.id, date: sale.date, createdAt: sale.createdAt, sale, paid: paidForSale(sale.id, data.payments), balance: saleBalance(sale, data.payments) }));
+  const payments = laterPayments(data, data.payments.filter((p) => p.customerId === customerId)).map(
+    (payment): CustomerEvent => ({ kind: "payment", id: payment.id, date: payment.date, createdAt: payment.createdAt, payment }),
+  );
+  return [...sales, ...payments].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+}
+
 export interface PeriodSummary {
   /** Value of sales made in the period. */
   sales: number;
@@ -65,11 +157,11 @@ export type Activity =
 
 /**
  * Sales, later payments and expenses in the period, newest first.
- * A payment made on the same day as its sale is part of that sale, so it is not listed separately.
+ * A payment made on the same day as its sale is part of that sale, so it is not listed separately,
+ * and a payment split across several sales is listed once.
  */
 export function recentActivity(data: BizData, range: DateRange, limit = 6): Activity[] {
   const names = new Map(data.customers.map((c) => [c.id, c.name]));
-  const saleDates = new Map(data.sales.map((s) => [s.id, s.date]));
 
   const items: Activity[] = [
     ...data.sales
@@ -84,16 +176,14 @@ export function recentActivity(data: BizData, range: DateRange, limit = 6): Acti
         amount: s.totalAmount,
         balance: saleBalance(s, data.payments),
       })),
-    ...data.payments
-      .filter((p) => inRange(p.date, range) && saleDates.get(p.saleId) !== p.date)
-      .map((p): Activity => ({
-        kind: "payment",
-        id: p.id,
-        date: p.date,
-        createdAt: p.createdAt,
-        customerName: names.get(p.customerId) ?? "Unknown customer",
-        amount: p.amount,
-      })),
+    ...laterPayments(data, data.payments.filter((p) => inRange(p.date, range))).map((p): Activity => ({
+      kind: "payment",
+      id: p.id,
+      date: p.date,
+      createdAt: p.createdAt,
+      customerName: names.get(p.customerId) ?? "Unknown customer",
+      amount: p.amount,
+    })),
     ...data.expenses
       .filter((e) => inRange(e.date, range))
       .map((e): Activity => ({

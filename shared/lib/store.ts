@@ -6,8 +6,8 @@
 
 import { useSyncExternalStore } from "react";
 import { demoData } from "./demo";
-import { saleBalance } from "./finance";
-import type { BizData, BusinessType, LocalDate, PaymentMethod } from "./types";
+import { allocatePayment, saleBalance } from "./finance";
+import type { BizData, BusinessType, Customer, LocalDate, Payment, PaymentMethod } from "./types";
 
 const STORAGE_KEY = "bizbuddy:v1";
 
@@ -74,7 +74,7 @@ export function recordSale(input: { customerName: string; product: string; total
   if (!isWholeNaira(input.amountPaid) || input.amountPaid < 0 || input.amountPaid > input.totalAmount) throw new Error("Amount paid must be whole naira, up to the sale amount");
   const data = getSnapshot();
   const name = input.customerName.trim();
-  const existing = data.customers.find((customer) => customer.name.toLowerCase() === name.toLowerCase());
+  const existing = findCustomerByName(data, name);
   const customer = existing ?? { id: crypto.randomUUID(), name, phone: "", createdAt: new Date().toISOString() };
   const saleId = crypto.randomUUID();
   const customers = existing ? data.customers : [...data.customers, customer];
@@ -94,6 +94,48 @@ export function recordPayment(input: { saleId: string; amount: number; method: P
   const payment = { id: crypto.randomUUID(), saleId: sale.id, customerId: sale.customerId, amount: input.amount, method: input.method, date: input.date, createdAt: new Date().toISOString() };
   commit({ ...data, payments: [...data.payments, payment] });
   return { outstanding: owing - input.amount };
+}
+
+/** The existing customer with this name, ignoring case and extra spaces. */
+export function findCustomerByName(data: BizData, name: string): Customer | undefined {
+  const wanted = name.trim().toLowerCase();
+  return data.customers.find((customer) => customer.name.trim().toLowerCase() === wanted);
+}
+
+/** Adds a customer. Throws if the name is empty or already used, since sales find customers by name. */
+export function addCustomer(input: { name: string; phone: string }): Customer {
+  const data = getSnapshot();
+  const name = input.name.trim();
+  if (!name) throw new Error("Customer name is required");
+  if (findCustomerByName(data, name)) throw new Error("A customer with that name already exists");
+  const customer: Customer = { id: crypto.randomUUID(), name, phone: input.phone.trim(), createdAt: new Date().toISOString() };
+  commit({ ...data, customers: [...data.customers, customer] });
+  return customer;
+}
+
+/**
+ * Records money a customer paid without naming a sale. It pays off their unpaid sales oldest first,
+ * one Payment per sale, all sharing a batchId so they show as one payment.
+ */
+export function recordCustomerPayment(input: { customerId: string; amount: number; method: PaymentMethod; date: LocalDate }) {
+  if (!isWholeNaira(input.amount) || input.amount <= 0) throw new Error("Payment must be whole naira above 0");
+  const data = getSnapshot();
+  const parts = allocatePayment(input.customerId, input.amount, input.date, data);
+  if (!parts || parts.length === 0) throw new Error("Payment is more than what was owed on that date");
+  const batchId = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  const payments: Payment[] = parts.map((part) => ({
+    id: crypto.randomUUID(),
+    saleId: part.sale.id,
+    customerId: input.customerId,
+    batchId,
+    amount: part.amount,
+    method: input.method,
+    date: input.date,
+    createdAt,
+  }));
+  commit({ ...data, payments: [...data.payments, ...payments] });
+  return { parts };
 }
 
 /** Replaces all existing records with the sample business. Callers must confirm first if data exists. */

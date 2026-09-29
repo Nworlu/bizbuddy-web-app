@@ -4,9 +4,9 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, and Sale Details with Record Payment. Expenses, customers, Ask BizBuddy, and settings are still placeholders.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, and Customers (list, customer page with Record Payment, Add Customer). Expenses, Ask BizBuddy, and settings are still placeholders.
 
-The next task is **Customers** (`/customers`): who owes you, then a customer page. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **Expenses**: Record Expense (`/expenses/new`) and the Expenses list (`/expenses`). The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -58,7 +58,10 @@ app/
   (app)/sales/page.tsx         sales list
   (app)/sales/new/page.tsx     Record Sale
   (app)/sales/[id]/page.tsx    sale details and record payment
-  (app)/{expenses,customers,ask,settings}/…   ComingSoon
+  (app)/customers/page.tsx     customers list, who owes what
+  (app)/customers/[id]/page.tsx  customer page: totals, history, record payment (oldest sale first)
+  (app)/customers/new/page.tsx add customer
+  (app)/{expenses,ask,settings}/…   ComingSoon
 
 features/
   marketing/                   landing screen, FAQ, legal shell
@@ -66,13 +69,14 @@ features/
   shell/                       app shell, useBiz()
   dashboard/                   dashboard screen
   sales/                       sales list, Record Sale, sale details
-  expenses, customers, ask, settings/   screen placeholders only
+  customers/                   customers list, customer page, add customer, CustomerAvatar
+  expenses, ask, settings/     screen placeholders only
 
 shared/
   ui/                          logo, icons, coming-soon  (used by more than one feature)
   lib/
     types.ts                   data model
-    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment()
+    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment()
     toast.ts                   showToast(); the shell listens and shows it
     finance.ts                 ALL money calculations (pure functions)
     dates.ts                   local-date helpers, period ranges
@@ -99,6 +103,8 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 10. **Recent Activity** lists sales, *later* payments and expenses. A payment on the same day as its sale is shown as part of the sale, not as a separate row.
 11. **Money is whole naira.** Forms read amounts with `parseNaira()` (`shared/lib/format.ts`), which accepts "85000", "85,000" or "₦85,000" and rejects kobo. The store rejects non-integers too. Amounts are displayed rounded to whole naira, so a stored ₦4,999.50 showed as ₦5,000 and then refused a ₦5,000 payment.
 12. **Never replace records without asking.** `loadDemoData()` wipes everything. Call it only from a button, never from an effect, and confirm first when `hasRecords()` or a business exists.
+13. **A customer payment pays the oldest unpaid sale first** (`allocatePayment()` in `finance.ts`). It is saved as one `Payment` per sale, all sharing a `batchId`, and `laterPayments()` joins them back so the customer page and Recent Activity show one payment. A payment can only cover sales dated on or before the payment date (`owedOn()`). A payment from a sale page still goes to that one sale.
+14. **Customer names are unique, ignoring case and extra spaces** (`findCustomerByName()`). Record Sale reuses the existing customer; Add Customer refuses a duplicate and links to the existing one.
 
 ## Styling rules
 
@@ -110,11 +116,12 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 
 ## Next steps
 
-1. **Customers and Customer Details.** The sales list and a sale page are done. A sale page records a later payment on that one sale, and the amount cannot exceed what is still owed. A payment that covers several of a customer's sales is still open. Proposed rule: oldest open sale first. Confirm it with the product owner and put it in `finance.ts`.
-2. **Record Expense and the Expenses list.**
-3. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
-4. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
-5. **Remaining work from the spec:**
+1. **Record Expense and the Expenses list.** `EXPENSE_CATEGORIES` and the `Expense` type already exist; add `recordExpense()` to the store with the whole-naira check. The dashboard Expenses card and Recent Activity already read expenses.
+2. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
+3. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
+4. **Remaining work from the spec:**
+   - "Record a sale" on a customer page doesn't pre-fill the customer yet
+   - editing a customer's name or phone
    - the Custom date range
    - an offline banner
    - edit and delete for sales, with confirmation (§27)
@@ -135,7 +142,6 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 ## Open questions for the product owner
 
 - **Storage and auth:** Sales must still be there on another phone. Onboarding collects a name and phone and saves them in this browser only. A real account needs a server. None is set up. WhatsApp comes after the web book, not before it.
-- **Paying off several sales:** when a customer's payment covers more than one sale, does "oldest first" work?
 - **Font:** Outfit (from the Figma design) or Inter (from the UX doc)?
 - **Expenses on mobile:** keep it off the bottom bar, or replace one of the tabs?
 - **Data model:** should `BIZBUDDY_PLAN.md` §17 be updated to the payments-only model?

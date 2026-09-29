@@ -41,6 +41,11 @@ export interface Sale {
 export interface Payment {
   id: string;
   saleId: string;
+  /**
+   * Set when one payment from a customer was split across several sales (oldest first).
+   * Every part shares the batchId, so the app can show it as a single payment.
+   */
+  batchId?: string;
   customerId: string;
   amount: number;
   method: PaymentMethod;

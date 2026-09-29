@@ -69,6 +69,19 @@ export function createBusiness(input: { name: string; ownerName: string; phone: 
 }
 
 /** Creates the customer when the name is new, then the sale, then a payment when they paid something. */
+/** Changes the shop's details. The records stay as they are. */
+export function updateBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType }) {
+  const data = getSnapshot();
+  if (!data.business) throw new Error("No business to update");
+  if (!input.name.trim() || !input.ownerName.trim()) throw new Error("Business and owner name are required");
+  commit({ ...data, business: { ...data.business, name: input.name.trim(), ownerName: input.ownerName.trim(), phone: input.phone.trim(), type: input.type } });
+}
+
+/** Deletes the shop and every record from this browser. Callers must confirm first. */
+export function resetAll() {
+  commit(EMPTY);
+}
+
 export function recordSale(input: { customerName: string; product: string; totalAmount: number; amountPaid: number; method: PaymentMethod; date: LocalDate }) {
   if (!isWholeNaira(input.totalAmount) || input.totalAmount <= 0) throw new Error("Sale amount must be whole naira above 0");
   if (!isWholeNaira(input.amountPaid) || input.amountPaid < 0 || input.amountPaid > input.totalAmount) throw new Error("Amount paid must be whole naira, up to the sale amount");

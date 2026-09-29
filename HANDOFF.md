@@ -4,9 +4,9 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), and Ask BizBuddy. Settings is still a placeholder.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, and Settings (edit business details, record counts, sample shop, delete everything). Every V0.1 screen exists.
 
-The next task is **Settings** (`/settings`). The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **fixing mistakes**: editing and deleting sales, payments, and expenses. See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -64,7 +64,7 @@ app/
   (app)/expenses/page.tsx      expenses list: period filter, total, per-category totals, search
   (app)/expenses/new/page.tsx  Record Expense
   (app)/ask/page.tsx           Ask BizBuddy chat; answers ?q= from the dashboard (Suspense for useSearchParams)
-  (app)/settings/page.tsx      ComingSoon
+  (app)/settings/page.tsx      Settings: business details, record counts, sample shop, delete everything
 
 features/
   marketing/                   landing screen, FAQ, legal shell
@@ -75,13 +75,13 @@ features/
   customers/                   customers list, customer page, add customer, CustomerAvatar
   expenses/                    expenses list, Record Expense
   ask/                         chat screen; lib/answer.ts matches the question and builds the answer
-  settings/                    screen placeholder only
+  settings/                    settings screen
 
 shared/
-  ui/                          logo, icons, coming-soon, period-filter  (used by more than one feature)
+  ui/                          logo, icons, period-filter  (used by more than one feature)
   lib/
     types.ts                   data model
-    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense()
+    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll()
     toast.ts                   showToast(); the shell listens and shows it
     finance.ts                 ALL money calculations (pure functions)
     dates.ts                   local-date helpers, period ranges
@@ -122,15 +122,18 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 
 ## Next steps
 
-1. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
-2. **Remaining work from the spec:**
-   - editing or deleting an expense
-   - "Record a sale" on a customer page doesn't pre-fill the customer yet
+Every V0.1 screen now exists. `BIZBUDDY_PLAN.md` §38 says the next move is to put it in front of real shop owners, watch them use it, and fix the biggest problems. Before that:
+
+1. **Fixing mistakes.** A wrong sale, payment, or expense can't be edited or deleted yet, so one typo stays in the books for good. Add edit and delete for sales, payments, and expenses, with confirmation (UX spec §27). Deleting a sale must also delete its payments, and editing a sale total must not drop below what has been paid.
+2. **Tests.** Add Vitest and cover `finance.ts`, `dates.ts`, and `features/ask/lib/answer.ts`. So far these were checked with throwaway `tsx` scripts.
+3. **Polish from the review:**
+   - on phones, the landing hero's "Paid ₦50,000" card is mostly hidden behind the "Still owes" card
+   - grey text contrast: the grey first line of the landing headline, grey body text on the landing page, and the dates in the Sales list
+   - customer suggestions on Record Sale can't be picked with the keyboard
+   - "Record a sale" on a customer page doesn't pre-fill the customer
    - editing a customer's name or phone
-   - the Custom date range
-   - an offline banner
-   - edit and delete for sales, with confirmation (§27)
-   - a test runner for `finance.ts` and `dates.ts` (Vitest is the obvious choice)
+4. **Spec items still open:** the Custom date range, and an offline banner.
+5. **Accounts and a server** before shop owners rely on it day to day (see open questions).
 
 ## Figma Make export: known bugs (don't port these)
 

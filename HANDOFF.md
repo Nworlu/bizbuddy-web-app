@@ -4,9 +4,9 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), and Expenses (list with period filter and category totals, Record Expense). Ask BizBuddy and settings are still placeholders.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), and Ask BizBuddy. Settings is still a placeholder.
 
-The next task is **Ask BizBuddy** (`/ask`). The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **Settings** (`/settings`). The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -63,7 +63,8 @@ app/
   (app)/customers/new/page.tsx add customer
   (app)/expenses/page.tsx      expenses list: period filter, total, per-category totals, search
   (app)/expenses/new/page.tsx  Record Expense
-  (app)/{ask,settings}/…       ComingSoon
+  (app)/ask/page.tsx           Ask BizBuddy chat; answers ?q= from the dashboard (Suspense for useSearchParams)
+  (app)/settings/page.tsx      ComingSoon
 
 features/
   marketing/                   landing screen, FAQ, legal shell
@@ -73,7 +74,8 @@ features/
   sales/                       sales list, Record Sale, sale details
   customers/                   customers list, customer page, add customer, CustomerAvatar
   expenses/                    expenses list, Record Expense
-  ask, settings/               screen placeholders only
+  ask/                         chat screen; lib/answer.ts matches the question and builds the answer
+  settings/                    screen placeholder only
 
 shared/
   ui/                          logo, icons, coming-soon, period-filter  (used by more than one feature)
@@ -87,7 +89,7 @@ shared/
     demo.ts                    Ada's Fashion sample data, dated relative to today
 ```
 
-A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` only when that feature has something to put there. Do not add empty folders. `shared/ui` is for UI used by more than one feature. `shared/lib` is cross-feature logic, not UI.
+A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or `lib/` (logic only that feature uses) only when that feature has something to put there. Do not add empty folders. `shared/ui` is for UI used by more than one feature. `shared/lib` is cross-feature logic, not UI.
 
 ## Key decisions (keep these)
 
@@ -108,6 +110,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 12. **Never replace records without asking.** `loadDemoData()` wipes everything. Call it only from a button, never from an effect, and confirm first when `hasRecords()` or a business exists.
 13. **A customer payment pays the oldest unpaid sale first** (`allocatePayment()` in `finance.ts`). It is saved as one `Payment` per sale, all sharing a `batchId`, and `laterPayments()` joins them back so the customer page and Recent Activity show one payment. A payment can only cover sales dated on or before the payment date (`owedOn()`). A payment from a sale page still goes to that one sale.
 14. **Customer names are unique, ignoring case and extra spaces** (`findCustomerByName()`). Record Sale reuses the existing customer; Add Customer refuses a duplicate and links to the existing one.
+15. **Ask BizBuddy is keyword matching, not AI** (`features/ask/lib/answer.ts`). It answers the V0.1 questions in `BIZBUDDY_PLAN.md` §13: who owes me, how much a named customer owes or bought, sales, expenses, and money collected, for today, this week, this month (the default), or last month. Every number comes from `finance.ts`. Anything else gets suggested questions. The chat is not saved.
 
 ## Styling rules
 
@@ -119,9 +122,8 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, or `content/` 
 
 ## Next steps
 
-1. **Ask BizBuddy.** The dashboard already sends `/ask?q=…`. Port the keyword matcher from the Figma `AskBizBuddy.tsx`, but build every answer from `finance.ts`.
-2. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
-3. **Remaining work from the spec:**
+1. **Settings.** Show business info. "Load demo data" must **confirm before replacing existing records** (use `hasRecords()`). Add "Reset all data" with a confirmation.
+2. **Remaining work from the spec:**
    - editing or deleting an expense
    - "Record a sale" on a customer page doesn't pre-fill the customer yet
    - editing a customer's name or phone

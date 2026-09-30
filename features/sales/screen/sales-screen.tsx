@@ -91,7 +91,7 @@ export function SalesPage() {
                       </span>
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-ink-muted">{row.sale.product}</span>
-                    <span className="mt-0.5 block text-xs text-stone-400">{formatDate(row.sale.date)}</span>
+                    <span className="mt-0.5 block text-xs text-ink-muted">{formatDate(row.sale.date)}</span>
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block text-sm font-bold tabular-nums text-ink">{formatNaira(row.sale.totalAmount)}</span>

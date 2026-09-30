@@ -115,6 +115,34 @@ describe("addCustomer", () => {
   });
 });
 
+describe("editing and deleting customers", () => {
+  it("renames a customer and tidies the spaces", () => {
+    store.updateCustomer({ customerId: "c1", name: "  David   Okafor Jnr ", phone: "0803 000 0000" });
+    expect(read().customers.find((c) => c.id === "c1")).toMatchObject({ name: "David Okafor Jnr", phone: "0803 000 0000" });
+  });
+
+  it("keeps the same name with different capitals", () => {
+    store.updateCustomer({ customerId: "c1", name: "david okafor", phone: "" });
+    expect(read().customers.find((c) => c.id === "c1")?.name).toBe("david okafor");
+  });
+
+  it("refuses a name another customer already has, or an empty one", () => {
+    expect(() => store.updateCustomer({ customerId: "c1", name: "sarah ibrahim", phone: "" })).toThrow();
+    expect(() => store.updateCustomer({ customerId: "c1", name: "  ", phone: "" })).toThrow();
+  });
+
+  it("won't delete a customer who has sales", () => {
+    expect(() => store.deleteCustomer("c1")).toThrow();
+    expect(read().customers).toHaveLength(4);
+  });
+
+  it("deletes a customer with no sales", () => {
+    const bisi = store.addCustomer({ name: "Bisi Adeyemi", phone: "" });
+    store.deleteCustomer(bisi.id);
+    expect(read().customers.some((c) => c.id === bisi.id)).toBe(false);
+  });
+});
+
 describe("updateSale", () => {
   it("changes the product, total, and date", () => {
     store.updateSale({ saleId: "s1", customerName: "David Okafor", product: "Sneakers (Nike)", totalAmount: 90000, date: daysAgo(3) });

@@ -8,7 +8,7 @@ import { BENEFITS, STEPS } from "../content/landing";
 import { FAQ } from "../content/faq";
 
 const STEP_TONES = [
-  "flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-white p-6 text-stone-500 shadow-xl shadow-stone-300/50 md:min-h-80 md:rotate-[-2deg] md:p-7 [&_h3]:text-ink",
+  "flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-white p-6 text-stone-600 shadow-xl shadow-stone-300/50 md:min-h-80 md:rotate-[-2deg] md:p-7 [&_h3]:text-ink",
   "flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-brand-100 p-6 text-brand-800 shadow-xl shadow-brand-900/10 md:min-h-80 md:translate-y-6 md:rotate-[2deg] md:p-7 [&_h3]:text-ink",
   "flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-brand-800 p-6 text-brand-100 shadow-xl shadow-brand-900/20 md:min-h-80 md:rotate-[-1deg] md:p-7 [&_h3]:text-white",
 ];
@@ -43,10 +43,10 @@ export function LandingScreen() {
             <Logo size="sm" />
           </Link>
           <nav aria-label="Page" className="hidden items-center gap-8 md:flex">
-            <a href="#how" className="text-sm text-stone-500 hover:text-ink">
+            <a href="#how" className="text-sm text-stone-600 hover:text-ink">
               How it works
             </a>
-            <a href="#questions" className="text-sm text-stone-500 hover:text-ink">
+            <a href="#questions" className="text-sm text-stone-600 hover:text-ink">
               Questions
             </a>
           </nav>
@@ -89,11 +89,11 @@ export function LandingScreen() {
       <main id="main">
         <section className="px-4 pb-8 pt-16 text-center md:pt-24">
           <h1 className="reveal-load mx-auto max-w-4xl text-balance text-5xl font-bold leading-[0.95] tracking-tight md:text-7xl">
-            <span className="text-stone-400">Know who paid,</span>
+            <span className="text-stone-500">Know who paid,</span>
             <br />
             and who still owes you.
           </h1>
-          <p className="reveal-load mx-auto mt-6 max-w-xl text-pretty text-base leading-7 text-stone-500 md:text-lg" style={{ animationDelay: "120ms" }}>
+          <p className="reveal-load mx-auto mt-6 max-w-xl text-pretty text-base leading-7 text-stone-600 md:text-lg" style={{ animationDelay: "120ms" }}>
             A simple book for shops that sell on WhatsApp, Instagram, and in person. Record the sale, what they paid, and what you spent.
           </p>
           <div className="reveal-load mt-8 flex items-center justify-center gap-2" style={{ animationDelay: "200ms" }}>
@@ -106,10 +106,11 @@ export function LandingScreen() {
           </div>
         </section>
 
-        <section aria-label="Example sale" className="relative mx-auto h-80 max-w-3xl md:h-96">
-          <Slip className="left-[8%] top-8 [--tilt:-8deg]" delay="0s" name="David" detail="Sneakers" label="Sale" amount="₦85,000" />
-          <Slip className="left-[36%] top-20 [--tilt:5deg]" delay="0.8s" name="Paid today" detail="Bank transfer" label="Paid" amount="₦50,000" />
-          <Slip className="right-[8%] top-6 [--tilt:-2deg]" delay="1.4s" name="Still owes" detail="Until the rest is paid" label="Balance" amount="₦35,000" emphasis />
+        {/* Phones: a staggered stack, so every slip can be read. From md up: slips float over each other. */}
+        <section aria-label="Example sale" className="relative mx-auto flex max-w-sm flex-col px-6 pb-16 pt-4 md:block md:h-96 md:max-w-3xl md:px-0 md:pb-0 md:pt-0">
+          <Slip className="self-start [--tilt:-3deg] md:left-[8%] md:top-8 md:[--tilt:-8deg]" delay="0s" name="David" detail="Sneakers" label="Sale" amount="₦85,000" />
+          <Slip className="-mt-3 self-end [--tilt:3deg] md:left-[36%] md:top-20 md:mt-0 md:[--tilt:5deg]" delay="0.8s" name="Paid today" detail="Bank transfer" label="Paid" amount="₦50,000" />
+          <Slip className="-mt-3 self-start [--tilt:-2deg] md:right-[8%] md:top-6 md:mt-0" delay="1.4s" name="Still owes" detail="Until the rest is paid" label="Balance" amount="₦35,000" emphasis />
         </section>
 
         <CurvedRibbons top={RIBBON} bottom={RIBBON_TWO} />
@@ -128,7 +129,7 @@ export function LandingScreen() {
                 How it works
               </p>
               <h2 className="max-w-xl text-balance text-4xl font-bold tracking-tight md:text-right md:text-5xl">
-                From a sale to a balance <span className="text-stone-400">you can see.</span>
+                From a sale to a balance <span className="text-stone-500">you can see.</span>
               </h2>
             </div>
             <ol className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
@@ -140,7 +141,7 @@ export function LandingScreen() {
                   </div>
                   <div>
                     <h3 className="text-2xl font-semibold">{step.title}</h3>
-                    <p className="mt-2 text-base leading-6 opacity-80">{step.body}</p>
+                    <p className="mt-2 text-base leading-6">{step.body}</p>
                   </div>
                 </li>
               ))}
@@ -155,7 +156,7 @@ export function LandingScreen() {
               The money
             </p>
             <h2 className="mt-4 max-w-xl text-balance text-4xl font-bold tracking-tight md:text-6xl">
-              <span className="text-stone-400">The money,</span> in one place.
+              <span className="text-stone-500">The money,</span> in one place.
             </h2>
             <ul className="mt-10 border-t border-stone-300">
               {BENEFITS.map((item) => (
@@ -170,7 +171,7 @@ export function LandingScreen() {
                       <Arrow />
                     </Link>
                   </div>
-                  <p className="mt-3 max-w-xl text-base leading-7 text-stone-500">{item.body}</p>
+                  <p className="mt-3 max-w-xl text-base leading-7 text-stone-600">{item.body}</p>
                   <ul className="mt-5 flex list-none flex-wrap gap-2">
                     {item.points.map((point) => (
                       <li key={point} className="rounded-full bg-white px-4 py-2 text-sm text-stone-600">
@@ -205,12 +206,12 @@ export function LandingScreen() {
                   <summary className="cursor-pointer list-none text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-700 [&::-webkit-details-marker]:hidden">
                     <span className="flex items-center justify-between gap-4">
                       {item.q}
-                      <span aria-hidden="true" className="text-2xl font-normal leading-none text-stone-400 transition-transform duration-300 group-open:rotate-45">
+                      <span aria-hidden="true" className="text-2xl font-normal leading-none text-stone-500 transition-transform duration-300 group-open:rotate-45">
                         +
                       </span>
                     </span>
                   </summary>
-                  <p className="mt-3 max-w-lg text-base leading-6 text-stone-500">{item.a}</p>
+                  <p className="mt-3 max-w-lg text-base leading-6 text-stone-600">{item.a}</p>
                 </details>
               ))}
             </div>
@@ -237,7 +238,7 @@ export function LandingScreen() {
 
       <footer className="flex items-center justify-between px-4 py-8 md:px-8">
         <Logo size="sm" />
-        <nav aria-label="Footer" className="flex gap-4 text-sm text-stone-500">
+        <nav aria-label="Footer" className="flex gap-4 text-sm text-stone-600">
           <Link href="/privacy" className="hover:text-ink">
             Privacy
           </Link>
@@ -379,9 +380,9 @@ function Slip({
   return (
     <article
       style={{ animationDelay: delay }}
-      className={`float-card absolute w-52 rounded-3xl p-5 shadow-xl shadow-stone-300/50 md:w-60 ${emphasis ? "border border-brand-800 bg-brand-900 text-white" : "border border-white bg-white"} ${className}`}
+      className={`float-card relative w-56 rounded-3xl p-5 md:absolute shadow-xl shadow-stone-300/50 md:w-60 ${emphasis ? "border border-brand-800 bg-brand-900 text-white" : "border border-white bg-white"} ${className}`}
     >
-      <p className={`text-xs font-medium ${emphasis ? "text-brand-200" : "text-stone-400"}`}>{label}</p>
+      <p className={`text-xs font-medium ${emphasis ? "text-brand-200" : "text-stone-500"}`}>{label}</p>
       <p className="mt-3 text-lg font-semibold">{name}</p>
       <p className={`text-sm ${emphasis ? "text-brand-100" : "text-stone-500"}`}>{detail}</p>
       <p className={`mt-4 text-2xl font-bold tabular-nums ${emphasis ? "text-amber-300" : ""}`}>{amount}</p>

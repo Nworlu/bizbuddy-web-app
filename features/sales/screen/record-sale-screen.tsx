@@ -10,11 +10,12 @@ import { showToast } from "@/shared/lib/toast";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 
-export function RecordSalePage() {
+export function RecordSalePage({ customerId }: { customerId?: string } = {}) {
   const { data } = useBiz();
   const router = useRouter();
-  const [customer, setCustomer] = useState("");
+  const [customer, setCustomer] = useState(() => data.customers.find((c) => c.id === customerId)?.name ?? "");
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const [product, setProduct] = useState("");
   const [total, setTotal] = useState("");
   const [paid, setPaid] = useState("");
@@ -40,6 +41,14 @@ export function RecordSalePage() {
     if (!query) return [];
     return data.customers.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 6);
   }, [customer, data.customers]);
+
+  const listOpen = open && matches.length > 0;
+
+  function pickCustomer(name: string) {
+    change("customer", name, setCustomer);
+    setOpen(false);
+    setActive(-1);
+  }
 
   const totalNum = parseNaira(total);
   const paidNum = paid.trim() === "" ? 0 : parseNaira(paid);
@@ -89,32 +98,57 @@ export function RecordSalePage() {
             aria-autocomplete="list"
             placeholder="e.g. David Okafor"
             aria-invalid={!!errors.customer}
-            aria-expanded={open && matches.length > 0}
+            aria-describedby={errors.customer ? "customer-error" : undefined}
+            aria-expanded={listOpen}
             aria-controls="customer-matches"
-            onChange={(event) => { change("customer", event.target.value, setCustomer); setOpen(true); }}
+            aria-activedescendant={listOpen && active >= 0 ? `customer-option-${active}` : undefined}
+            onChange={(event) => { change("customer", event.target.value, setCustomer); setOpen(true); setActive(-1); }}
             onFocus={() => setOpen(true)}
-            onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                if (matches.length === 0) return;
+                event.preventDefault();
+                setOpen(true);
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                setActive((current) => (current + step + matches.length) % matches.length);
+              } else if (event.key === "Enter" && listOpen && active >= 0) {
+                // Pick the highlighted customer instead of submitting the form.
+                event.preventDefault();
+                pickCustomer(matches[active].name);
+              } else if (event.key === "Escape" && listOpen) {
+                event.preventDefault();
+                setOpen(false);
+              }
+            }}
             className={fieldClass(!!errors.customer)}
           />
-          {open && matches.length > 0 && (
-            <ul id="customer-matches" role="listbox" className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-stone-200 bg-white shadow-lg">
-              {matches.map((item) => (
-                <li key={item.id} role="option" aria-selected={item.name === customer}>
-                  <button type="button" onMouseDown={() => { setCustomer(item.name); setOpen(false); }} className="block w-full px-4 py-2.5 text-left text-sm text-ink hover:bg-brand-50">
-                    {item.name}
-                  </button>
+          {listOpen && (
+            <ul id="customer-matches" role="listbox" aria-label="Existing customers" className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-stone-200 bg-white shadow-lg">
+              {matches.map((item, index) => (
+                <li
+                  key={item.id}
+                  id={`customer-option-${index}`}
+                  role="option"
+                  aria-selected={index === active}
+                  // mousedown, not click: it fires before the input loses focus and closes the list.
+                  onMouseDown={(event) => { event.preventDefault(); pickCustomer(item.name); }}
+                  onMouseEnter={() => setActive(index)}
+                  className={`cursor-pointer px-4 py-2.5 text-sm text-ink ${index === active ? "bg-brand-50" : ""}`}
+                >
+                  {item.name}
                 </li>
               ))}
             </ul>
           )}
-          {errors.customer && <p className="mt-1 text-xs text-rose-700">{errors.customer}</p>}
+          {errors.customer && <p id="customer-error" className="mt-1 text-xs text-rose-700">{errors.customer}</p>}
           {customer.trim() && !known && !errors.customer && <p className="mt-1 text-xs text-brand-800">New customer — will be added automatically</p>}
         </div>
 
         <div>
           <label htmlFor="product" className="mb-1.5 block text-sm font-medium text-ink">Product / Item</label>
-          <input id="product" value={product} onChange={(event) => change("product", event.target.value, setProduct)} placeholder="e.g. Sneakers, Ankara Dress..." aria-invalid={!!errors.product} className={fieldClass(!!errors.product)} />
-          {errors.product && <p className="mt-1 text-xs text-rose-700">{errors.product}</p>}
+          <input id="product" value={product} onChange={(event) => change("product", event.target.value, setProduct)} placeholder="e.g. Sneakers, Ankara Dress..." aria-invalid={!!errors.product} aria-describedby={errors.product ? "product-error" : undefined} className={fieldClass(!!errors.product)} />
+          {errors.product && <p id="product-error" className="mt-1 text-xs text-rose-700">{errors.product}</p>}
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -122,17 +156,17 @@ export function RecordSalePage() {
             <label htmlFor="total" className="mb-1.5 block text-sm font-medium text-ink">Sale Amount</label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-muted">₦</span>
-              <input id="total" inputMode="numeric" value={total} onChange={(event) => change("total", event.target.value, setTotal)} placeholder="0" aria-invalid={!!errors.total} className={`${fieldClass(!!errors.total)} pl-8`} />
+              <input id="total" inputMode="numeric" value={total} onChange={(event) => change("total", event.target.value, setTotal)} placeholder="0" aria-invalid={!!errors.total} aria-describedby={errors.total ? "total-error" : undefined} className={`${fieldClass(!!errors.total)} pl-8`} />
             </div>
-            {errors.total && <p className="mt-1 text-xs text-rose-700">{errors.total}</p>}
+            {errors.total && <p id="total-error" className="mt-1 text-xs text-rose-700">{errors.total}</p>}
           </div>
           <div>
             <label htmlFor="paid" className="mb-1.5 block text-sm font-medium text-ink">Amount Paid</label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-muted">₦</span>
-              <input id="paid" inputMode="numeric" value={paid} onChange={(event) => change("paid", event.target.value, setPaid)} placeholder="0" aria-invalid={!!errors.paid} className={`${fieldClass(!!errors.paid)} pl-8`} />
+              <input id="paid" inputMode="numeric" value={paid} onChange={(event) => change("paid", event.target.value, setPaid)} placeholder="0" aria-invalid={!!errors.paid} aria-describedby={errors.paid ? "paid-error" : undefined} className={`${fieldClass(!!errors.paid)} pl-8`} />
             </div>
-            {errors.paid && <p className="mt-1 text-xs text-rose-700">{errors.paid}</p>}
+            {errors.paid && <p id="paid-error" className="mt-1 text-xs text-rose-700">{errors.paid}</p>}
           </div>
         </div>
 
@@ -159,8 +193,8 @@ export function RecordSalePage() {
 
         <div>
           <label htmlFor="date" className="mb-1.5 block text-sm font-medium text-ink">Date</label>
-          <input id="date" type="date" value={date} max={today()} onChange={(event) => change("date", event.target.value, setDate)} aria-invalid={!!errors.date} className={fieldClass(!!errors.date)} />
-          {errors.date && <p className="mt-1 text-xs text-rose-700">{errors.date}</p>}
+          <input id="date" type="date" value={date} max={today()} onChange={(event) => change("date", event.target.value, setDate)} aria-invalid={!!errors.date} aria-describedby={errors.date ? "date-error" : undefined} className={fieldClass(!!errors.date)} />
+          {errors.date && <p id="date-error" className="mt-1 text-xs text-rose-700">{errors.date}</p>}
         </div>
 
         {errors.form && <p role="alert" className="text-sm text-rose-700">{errors.form}</p>}

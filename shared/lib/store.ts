@@ -138,6 +138,24 @@ export function addCustomer(input: { name: string; phone: string }): Customer {
   return customer;
 }
 
+/** Changes a customer's name or phone. The name must stay unique, since sales find customers by name. */
+export function updateCustomer(input: { customerId: string; name: string; phone: string }) {
+  const data = getSnapshot();
+  const name = tidyName(input.name);
+  if (!name) throw new Error("Customer name is required");
+  if (!data.customers.some((c) => c.id === input.customerId)) throw new Error("Customer not found");
+  const clash = findCustomerByName(data, name);
+  if (clash && clash.id !== input.customerId) throw new Error("A customer with that name already exists");
+  commit({ ...data, customers: data.customers.map((c) => (c.id === input.customerId ? { ...c, name, phone: input.phone.trim() } : c)) });
+}
+
+/** Deletes a customer with no sales. A customer with sales can't be deleted: delete or move their sales first. */
+export function deleteCustomer(customerId: string) {
+  const data = getSnapshot();
+  if (data.sales.some((s) => s.customerId === customerId)) throw new Error("Customer still has sales");
+  commit({ ...data, customers: data.customers.filter((c) => c.id !== customerId) });
+}
+
 /**
  * Records money a customer paid without naming a sale. It pays off their unpaid sales oldest first,
  * one Payment per sale, all sharing a batchId so they show as one payment.

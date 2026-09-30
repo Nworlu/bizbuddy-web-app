@@ -185,7 +185,7 @@ function Onboarding({ data }: { data: BizData }) {
               {saving ? "Opening the sample shop…" : "Try with demo data"}
             </button>
             {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
-            <p className="mt-6 text-xs text-stone-400">Made for Nigerian small businesses</p>
+            <p className="mt-6 text-xs text-ink-muted">Made for Nigerian small businesses</p>
           </div>
         )}
 

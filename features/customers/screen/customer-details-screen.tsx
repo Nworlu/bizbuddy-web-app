@@ -34,7 +34,7 @@ export function CustomerDetailsPage({ id }: { id: string }) {
 
       <div className="mt-4 mb-6 flex items-center gap-4">
         <CustomerAvatar name={customer.name} owing={balance > 0} size="lg" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-bold text-ink">{customer.name}</h1>
           {customer.phone ? (
             <a href={`tel:${customer.phone.replace(/[^\d+]/g, "")}`} className="text-sm text-brand-700 hover:text-brand-800">{customer.phone}</a>
@@ -42,6 +42,9 @@ export function CustomerDetailsPage({ id }: { id: string }) {
             <p className="text-sm text-ink-muted">No phone number</p>
           )}
         </div>
+        <Link href={`/customers/${customer.id}/edit`} className="shrink-0 rounded-xl bg-stone-100 px-4 py-2 text-sm font-medium text-ink hover:bg-stone-200">
+          Edit
+        </Link>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -59,7 +62,7 @@ export function CustomerDetailsPage({ id }: { id: string }) {
         <p className="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-3 text-center text-sm font-medium text-brand-800">Paid up. {customer.name} owes you nothing.</p>
       ) : null}
 
-      <Link href="/sales/new" className="mt-3 block w-full rounded-xl bg-stone-100 py-3 text-center text-sm font-medium text-ink hover:bg-stone-200">
+      <Link href={`/sales/new?customer=${customer.id}`} className="mt-3 block w-full rounded-xl bg-stone-100 py-3 text-center text-sm font-medium text-ink hover:bg-stone-200">
         Record a sale
       </Link>
 

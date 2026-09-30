@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INTERPRETATION_SCHEMA, parseInterpretation, toDraft, type SaleAction } from "./intents";
+import { eitherDrafts, INTERPRETATION_SCHEMA, parseInterpretation, settleDirection, toDraft, type EitherAction, type SaleAction } from "./intents";
 
 const TODAY = "2026-09-30";
 const sale = (over: Partial<SaleAction>): SaleAction => ({
@@ -32,7 +32,7 @@ describe("toDraft: the app does the maths, not the model", () => {
   });
 
   it("fills sensible defaults for an expense and a payment", () => {
-    expect(toDraft({ kind: "expense", category: null, amount: 4000, description: " Dispatch ", date: null }, TODAY)).toEqual({
+    expect(toDraft({ kind: "expense", category: null, amount: 4000, description: " Dispatch ", spent_by: null, date: null }, TODAY)).toEqual({
       kind: "expense", category: "Other", amount: 4000, description: "Dispatch", date: TODAY,
     });
     expect(toDraft({ kind: "payment", customer: "Musa", amount: 20000, method: "POS", date: null }, TODAY)).toEqual({
@@ -68,5 +68,42 @@ describe("the schema sent to Claude", () => {
       expect(o.additionalProperties).toBe(false);
       expect(o.required).toEqual(Object.keys(o.properties as object));
     }
+  });
+});
+
+describe("which way the money went", () => {
+  const CUSTOMERS = ["Musa Bello", "David Okafor"];
+  const laptop = sale({ customer: "Mordecai", product: "Laptop", total_amount: 450000, amount_paid: 85000, method: "Bank Transfer" });
+
+  it("asks about a sale to someone who isn't a customer yet, when the note has no buying word", () => {
+    expect(settleDirection([laptop], "Mordecai sent 85k for laptop of 450k", CUSTOMERS)).toEqual([
+      { kind: "either", person: "Mordecai", what: "Laptop", amount: 85000, price: 450000, category: null, method: "Bank Transfer", date: null },
+    ]);
+  });
+
+  it("keeps the sale for a known customer, or when the note says sold or bought", () => {
+    const musa = sale({ customer: "Musa Bello", total_amount: 50000 });
+    expect(settleDirection([musa], "Musa sent 50k for the gown", CUSTOMERS)).toEqual([musa]);
+    expect(settleDirection([laptop], "Sold laptop to Mordecai for 450k, he sent 85k", CUSTOMERS)).toEqual([laptop]);
+    expect(settleDirection([laptop], "Mordecai bought laptop 450k, sent 85k", CUSTOMERS)).toEqual([laptop]);
+  });
+
+  it("uses the total as the amount sent when nothing was said as paid", () => {
+    const [either] = settleDirection([sale({ customer: "Tunde", total_amount: 50000 })], "Tunde sent 50k for phone", CUSTOMERS);
+    expect(either).toMatchObject({ kind: "either", amount: 50000, price: null });
+  });
+
+  it("builds both readings: the person paying for it, or spending it for the shop", () => {
+    const action: EitherAction = { kind: "either", person: "Mordecai", what: "Laptop", amount: 85000, price: 450000, category: "Stock", method: null, date: null };
+    expect(eitherDrafts(action, TODAY)).toEqual({
+      sale: { kind: "sale", customer: "Mordecai", product: "Laptop", total: 450000, paid: 85000, method: "Bank Transfer", date: TODAY },
+      expense: { kind: "expense", category: "Stock", amount: 85000, description: "Laptop, paid by Mordecai", by: "Mordecai", date: TODAY },
+    });
+  });
+
+  it("notes who on the team paid an expense", () => {
+    expect(toDraft({ kind: "expense", category: "Stock", amount: 15000, description: "Supplier", spent_by: "Mordecai", date: null }, TODAY)).toEqual({
+      kind: "expense", category: "Stock", amount: 15000, description: "Supplier, paid by Mordecai", by: "Mordecai", date: TODAY,
+    });
   });
 });

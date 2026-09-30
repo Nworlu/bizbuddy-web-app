@@ -7,23 +7,34 @@ import { formatDate, formatNaira } from "@/shared/lib/format";
 import type { BizData, LocalDate } from "@/shared/lib/types";
 import type { Draft } from "./intents";
 
+/** Questions for something missing from a note. A short reply answers them (WhatsApp reads it with the note). */
+export const MISSING = {
+  buyer: "Who bought it?",
+  product: "What did you sell?",
+  total: "How much was the sale? Whole naira, like 85000.",
+  spent: "How much did you spend? Whole naira, like 4000.",
+  payer: "Who paid?",
+  paid: "How much did they pay? Whole naira, like 20000.",
+} as const;
+export const MISSING_QUESTIONS: ReadonlySet<string> = new Set(Object.values(MISSING));
+
 /** What's missing or wrong with a draft, in words for the shop owner. null when it can be saved. */
 export function checkDraft(draft: Draft, data: BizData, today: LocalDate): string | null {
   if (!draft.date || draft.date > today) return "The date can't be in the future.";
   switch (draft.kind) {
     case "sale":
-      if (!draft.customer.trim()) return "Who bought it?";
-      if (!draft.product.trim()) return "What did you sell?";
-      if (draft.total === null) return "How much was the sale? Whole naira, like 85000.";
+      if (!draft.customer.trim()) return MISSING.buyer;
+      if (!draft.product.trim()) return MISSING.product;
+      if (draft.total === null) return MISSING.total;
       if (draft.paid > draft.total) return "They can't pay more than the sale amount.";
       return null;
     case "expense":
-      if (draft.amount === null) return "How much did you spend? Whole naira, like 4000.";
+      if (draft.amount === null) return MISSING.spent;
       return null;
     case "payment": {
       const match = draft.customer.trim() ? findCustomerByName(data, draft.customer) : undefined;
-      if (!match) return draft.customer.trim() ? `${draft.customer.trim()} isn't one of your customers. Check the name.` : "Who paid?";
-      if (draft.amount === null) return "How much did they pay? Whole naira, like 20000.";
+      if (!match) return draft.customer.trim() ? `${draft.customer.trim()} isn't one of your customers. Check the name.` : MISSING.payer;
+      if (draft.amount === null) return MISSING.paid;
       const owed = owedOn(match.id, data, draft.date);
       if (owed === 0) return `${match.name} didn't owe anything then.`;
       if (draft.amount > owed) return `${match.name} owed ${formatNaira(owed)}. The payment can't be more than that.`;

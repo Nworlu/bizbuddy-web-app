@@ -31,6 +31,12 @@ export function loginEmail(normalizedPhone: string, mailbox = process.env.NEXT_P
   return `${local.split("+")[0]}+${normalizedPhone}@${domain}`;
 }
 
+/** The phone number inside a login address (owner+2348031234567@gmail.com -> 2348031234567), or null. */
+export function phoneFromLoginEmail(email: string | null | undefined): string | null {
+  const match = /\+(\d{13})@/.exec(email ?? "");
+  return match ? normalizePhone(match[1]) : null;
+}
+
 /** 2348031234567 -> 0803 123 4567, for showing to the shop owner. */
 export function displayPhone(normalizedPhone: string): string {
   const local = `0${normalizedPhone.slice(3)}`;

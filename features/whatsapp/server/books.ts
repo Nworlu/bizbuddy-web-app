@@ -9,6 +9,7 @@ import { loginEmail } from "@/shared/lib/phone";
 import { businessFromRemote, diff, recordFromRemote, recordToRemote, TABLES, type RemoteBusiness, type RemoteRow } from "@/shared/lib/sync";
 import type { BizData } from "@/shared/lib/types";
 import type { Draft } from "@/features/tell/lib/intents";
+import type { Either, LastAutoSave, Pending } from "@/features/whatsapp/lib/conversation";
 import { EMPTY_MEMORY, parseMemory, type ShopMemory } from "@/features/tell/lib/memory";
 
 let client: SupabaseClient | undefined;
@@ -111,18 +112,75 @@ export async function saveChanges(businessId: string, before: BizData, after: Bi
   }
 }
 
-export type Pending = { businessId: string; note: string; drafts: Draft[] };
+// The waiting drafts are one jsonb array. When BizBuddy asked "sale or expense?", both readings ride
+// along as an element marked { kind: "either" }; after an auto-save, what Undo takes out rides along
+// as { kind: "undo" }; a question waiting for an answer, and when the reminder went out, as { kind: "meta" }.
+// So no extra columns are needed.
+type StoredEither = Either & { kind: "either" };
+type StoredUndo = LastAutoSave & { kind: "undo" };
+type StoredMeta = { kind: "meta"; asking?: string; remindedAt?: string };
+type Stored = Draft | StoredEither | StoredUndo | StoredMeta;
+
+function fromStored(row: { business_id: unknown; note: unknown; drafts: unknown }): Pending {
+  const stored = (Array.isArray(row.drafts) ? row.drafts : []) as Stored[];
+  const drafts = stored.filter((item): item is Draft => item.kind === "sale" || item.kind === "expense" || item.kind === "payment");
+  const found = stored.find((item): item is StoredEither => item.kind === "either");
+  const last = stored.find((item): item is StoredUndo => item.kind === "undo");
+  const meta = stored.find((item): item is StoredMeta => item.kind === "meta");
+  return {
+    businessId: row.business_id as string,
+    note: (row.note as string) ?? "",
+    drafts,
+    ...(found ? { either: { person: found.person, sale: found.sale, expense: found.expense } } : {}),
+    ...(last ? { undo: { sales: last.sales, expenses: last.expenses, text: last.text } } : {}),
+    ...(meta?.asking ? { asking: meta.asking } : {}),
+    ...(meta?.remindedAt ? { remindedAt: meta.remindedAt } : {}),
+  };
+}
+
+function toStored(pending: Pending): Stored[] {
+  return [
+    ...pending.drafts,
+    ...(pending.either ? [{ kind: "either" as const, ...pending.either }] : []),
+    ...(pending.undo ? [{ kind: "undo" as const, ...pending.undo }] : []),
+    ...(pending.asking || pending.remindedAt ? [{ kind: "meta" as const, asking: pending.asking, remindedAt: pending.remindedAt }] : []),
+  ];
+}
 
 export async function getPending(phone: string): Promise<Pending | null> {
   const { data, error } = await db().from("whatsapp_pending").select("business_id, note, drafts").eq("phone", phone).maybeSingle();
   if (error) throw error;
-  return data ? { businessId: data.business_id as string, note: (data.note as string) ?? "", drafts: data.drafts as Draft[] } : null;
+  return data ? fromStored(data) : null;
 }
 
 export async function setPending(phone: string, pending: Pending): Promise<void> {
   const { error } = await db()
     .from("whatsapp_pending")
-    .upsert({ phone, business_id: pending.businessId, note: pending.note, drafts: pending.drafts, created_at: new Date().toISOString() });
+    .upsert({ phone, business_id: pending.businessId, note: pending.note, drafts: toStored(pending), created_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+/**
+ * Notes waiting on a Save / Cancel (or sale-or-expense) for longer than `olderThanMs`, that haven't had
+ * their reminder yet. Only within WhatsApp's 24-hour window, when a free text reminder may still be sent.
+ */
+export async function pendingToRemind(olderThanMs: number): Promise<{ phone: string; pending: Pending }[]> {
+  const now = Date.now();
+  const { data, error } = await db()
+    .from("whatsapp_pending")
+    .select("phone, business_id, note, drafts, created_at")
+    .lt("created_at", new Date(now - olderThanMs).toISOString())
+    .gt("created_at", new Date(now - 23 * 3_600_000).toISOString())
+    .limit(200);
+  if (error) throw error;
+  return (data ?? [])
+    .map((row) => ({ phone: row.phone as string, pending: fromStored(row) }))
+    .filter(({ pending }) => !pending.remindedAt && (pending.drafts.length > 0 || pending.either));
+}
+
+/** Marks the reminder as sent, without moving created_at (which the 24-hour window is counted from). */
+export async function markReminded(phone: string, pending: Pending, at: string): Promise<void> {
+  const { error } = await db().from("whatsapp_pending").update({ drafts: toStored({ ...pending, remindedAt: at }) }).eq("phone", phone);
   if (error) throw error;
 }
 
@@ -149,4 +207,17 @@ export async function getMemory(businessId: string): Promise<ShopMemory> {
 export async function saveMemory(businessId: string, memory: ShopMemory): Promise<void> {
   const { error } = await db().from("shop_memory").upsert({ business_id: businessId, memory, updated_at: new Date().toISOString() });
   if (error) throw error;
+}
+
+/** Claims the one welcome for this account. False when it was already welcomed. */
+export async function claimWelcome(userId: string, phone: string): Promise<boolean> {
+  const { error } = await db().from("whatsapp_welcomes").insert({ user_id: userId, phone });
+  if (!error) return true;
+  if (error.code === "23505") return false; // unique_violation: already welcomed
+  throw error;
+}
+
+/** Gives the claim back when the welcome couldn't be sent (e.g. the template isn't approved yet). */
+export async function releaseWelcome(userId: string): Promise<void> {
+  await db().from("whatsapp_welcomes").delete().eq("user_id", userId);
 }

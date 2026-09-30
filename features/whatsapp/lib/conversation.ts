@@ -8,22 +8,36 @@
 // conversation without any of them.
 
 import { answerTopic } from "@/features/ask/lib/answer";
-import { applyDraft, checkDraft, describeDraft } from "@/features/tell/lib/drafts";
-import { toDraft, type Draft, type Interpretation } from "@/features/tell/lib/intents";
+import { applyDraft, checkDraft, describeDraft, MISSING_QUESTIONS } from "@/features/tell/lib/drafts";
+import { eitherDrafts, toDraft, type Draft, type EitherAction, type ExpenseDraft, type Interpretation, type SaleDraft } from "@/features/tell/lib/intents";
+import { formatNaira } from "@/shared/lib/format";
+import { added, AUTO_SAVE_AFTER, needsAsking, offerDue, reviewed, undo, withAutoSave, type Undo } from "@/features/tell/lib/autosave";
 import { learn, memoryForPrompt, type ShopMemory } from "@/features/tell/lib/memory";
 import { normalizePhone } from "@/shared/lib/phone";
 import type { BizData } from "@/shared/lib/types";
 import { chatHeading, chatPrompt, nextAbout, personalize, type ChatWith } from "./person";
-import { answerToText, CANCEL, decision, HELP, lagosToday, notLinked, SAVE } from "./text";
+import { answerToText, AUTO_OFF, AUTO_ON, CANCEL, command, decision, HELP, lagosToday, notLinked, SAVE, SAVE_EXPENSE, SAVE_SALE, UNDO, type Choice } from "./text";
 
 export type Incoming = { id: string; from: string; profileName?: string; text?: string; buttonId?: string; other?: string };
 export type Button = { id: string; title: string };
-export type Pending = { businessId: string; note: string; drafts: Draft[] };
+/** Money a person sent that could be a customer paying or the team spending: the owner picks one. */
+export type Either = { person: string; sale: SaleDraft; expense: ExpenseDraft };
+/** What the last auto-save added, so Undo can take it back out. */
+export type LastAutoSave = Undo & { text: string };
+/**
+ * Waiting on the owner. drafts: shown with Save / Cancel. either: shown with Save as sale / expense.
+ * undo: what the last auto-save added. asking: a question about the note (e.g. "Who bought it?"),
+ * whose short answer is added to the note and read again. remindedAt: when the one reminder went out.
+ */
+export type Pending = { businessId: string; note: string; drafts: Draft[]; either?: Either; undo?: LastAutoSave; asking?: string; remindedAt?: string };
 export type TellInput = { message: string; today: string; weekday: string; customers: string[]; chatWith?: string | null; memory?: string | null };
 
 export interface Deps {
   markSeen(messageId: string): Promise<boolean>;
-  whoIsChatting(phone: string, profileName: string | null): Promise<ChatWith>;
+  /** The chat, and the owner's books when it found them (so they aren't loaded twice). */
+  whoIsChatting(phone: string, profileName: string | null): Promise<{ chat: ChatWith; books: BizData | null }>;
+  /** Shows "typing…" in the sender's chat and marks their message read, while the reply is worked out. */
+  showTyping?(messageId: string): Promise<void>;
   loadBooks(businessId: string): Promise<BizData>;
   saveChanges(businessId: string, before: BizData, after: BizData): Promise<void>;
   getPending(phone: string): Promise<Pending | null>;
@@ -44,31 +58,63 @@ const BUTTONS: Button[] = [
   { id: SAVE, title: "Save" },
   { id: CANCEL, title: "Cancel" },
 ];
+const EITHER_BUTTONS: Button[] = [
+  { id: SAVE_SALE, title: "Save as sale" },
+  { id: SAVE_EXPENSE, title: "Save as expense" },
+  { id: CANCEL, title: "Cancel" },
+];
+const WHICH = "Which is it? Tap *Save as sale* or *Save as expense*.";
+const ANSWER_WORDS = 8;
+const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
+const clip = (text: string) => (text.length > 80 ? `${text.slice(0, 77)}…` : text).replace(/\s+/g, " ");
+
+const UNDO_BUTTON: Button[] = [{ id: UNDO, title: "Undo" }];
+const OFFER_BUTTONS: Button[] = [
+  { id: AUTO_ON, title: "Yes, auto-save" },
+  { id: AUTO_OFF, title: "No, keep asking" },
+];
+const STILL_ASKS = "I'll still ask about new customers, payments, big amounts, and anything that could be a sale or an expense.";
+const OFFER = `I've read your last ${AUTO_SAVE_AFTER} notes right. Want me to save notes like these straight away, without asking?\n\n${STILL_ASKS} Every one I save by myself has an *Undo*.`;
 
 export async function handleMessage(message: Incoming, deps: Deps): Promise<void> {
   // WhatsApp can deliver the same message twice: handle each once.
   if (!(await deps.markSeen(message.id))) return;
 
+  // Straight away: blue ticks and "typing…", so the owner knows BizBuddy is on it. Never blocks the reply.
+  await deps.showTyping?.(message.id).catch(() => undefined);
+
   const to = message.from;
   const phone = normalizePhone(message.from);
   if (!phone) return deps.send(to, "BizBuddy works with Nigerian phone numbers for now.");
 
-  const chat = await deps.whoIsChatting(phone, message.profileName ?? null);
+  const { chat, books: found } = await deps.whoIsChatting(phone, message.profileName ?? null);
   if (chat.kind !== "owner") return deps.send(to, notLinked(deps.appUrl));
 
   const { today, weekday } = lagosToday(deps.now?.() ?? new Date());
+  const asked = command({ text: message.text, buttonId: message.buttonId });
+  if (asked) return runCommand(asked, phone, to, chat, deps);
   const choice = decision({ text: message.text, buttonId: message.buttonId });
   if (choice) return confirm(choice, phone, to, chat, today, deps);
 
+  // Any other button (e.g. "Hi BizBuddy" on the welcome message) is a hello: greet and show how it works.
+  if (message.buttonId) return deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
   if (!message.text) return deps.send(to, `I can only read text messages for now.\n\n${HELP}`);
 
-  const books = await deps.loadBooks(chat.businessId);
-  const memory = await deps.getMemory(chat.businessId);
+  const [books, memory, waiting] = await Promise.all([found ? Promise.resolve(found) : deps.loadBooks(chat.businessId), deps.getMemory(chat.businessId), deps.getPending(phone)]);
+  const pending = waiting?.businessId === chat.businessId ? waiting : null;
+
+  // BizBuddy asked for something missing ("Who bought it?"): a short reply is the answer, so read the
+  // note again with it. Anything longer is a new note.
+  const answering = pending?.asking && words(message.text) <= ANSWER_WORDS;
+  const note = answering ? `${pending.note}\n(${pending.asking} ${message.text.trim()})` : message.text;
+  if (pending?.asking) await deps.clearPending(phone);
+  // A note still waiting on Save / Cancel from before.
+  const earlier = !answering && pending && (pending.drafts.length > 0 || pending.either) ? pending : null;
 
   let actions;
   try {
     const result = await deps.interpret({
-      message: message.text.slice(0, 600),
+      message: note.slice(0, 800),
       today,
       weekday,
       customers: books.customers.map((c) => c.name),
@@ -86,15 +132,28 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
 
   const answers: string[] = [];
   const drafts: Draft[] = [];
+  let unsure: EitherAction | null = null;
   for (const action of actions) {
     if (action.kind === "question") answers.push(answerToText(answerTopic(action.topic, action.customer, action.period, books, deps.now?.())));
     else if (action.kind === "unclear") answers.push(action.reply);
-    else drafts.push(toDraft(action, today));
+    else if (action.kind === "either") {
+      if (unsure) answers.push(`Send the part about ${action.person} again on its own, and I'll ask about it.`);
+      else unsure = action;
+    } else drafts.push(toDraft(action, today));
   }
 
   if (answers.length > 0) await deps.send(to, answers.join("\n\n"));
+  // A new note to record replaces the one still waiting: say so, so it isn't lost silently.
+  if (earlier && (unsure || drafts.length > 0)) await deps.send(to, `(Your earlier note wasn't saved: _${clip(earlier.note)}_. Send it again if you want it.)`);
+  if (unsure) return askWhich(unsure, drafts, note, phone, to, chat, books, today, deps);
+  if (memory.autoSave === "on" && drafts.length > 0 && drafts.every((draft) => needsAsking(draft, books, today) === null)) {
+    return saveNow(drafts, note, phone, to, chat, books, memory, deps);
+  }
   if (drafts.length === 0) {
     if (answers.length === 0) await deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
+    // Only a question: the earlier note is still waiting, so remind them with its buttons.
+    const reminder = earlier && reminderFor(earlier, books);
+    if (reminder) await deps.send(to, reminder.body, reminder.buttons);
     return;
   }
 
@@ -109,25 +168,130 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   });
 
   if (ready.length === 0) {
+    // Ask for the first thing that's missing; the owner's short answer is read with this note.
+    const question = problems.find((problem): problem is string => problem !== null && MISSING_QUESTIONS.has(problem));
+    if (question) {
+      await deps.setPending(phone, { businessId: chat.businessId, note, drafts: [], asking: question });
+      return deps.send(to, `${blocks.join("\n\n")}\n\n${question}`);
+    }
     await deps.clearPending(phone);
     return deps.send(to, `${blocks.join("\n\n")}\n\nSend it again with what's missing, and I'll record it.`);
   }
 
-  await deps.setPending(phone, { businessId: chat.businessId, note: message.text, drafts: ready });
+  await deps.setPending(phone, { businessId: chat.businessId, note, drafts: ready });
   const ask = ready.length === drafts.length ? (ready.length > 1 ? "Save these?" : "Save this?") : `Save the ${ready.length === 1 ? "complete one" : `${ready.length} complete ones`}? The rest need what's missing.`;
   return deps.send(to, `${blocks.join("\n\n")}\n\n${ask}`, BUTTONS);
 }
 
-async function confirm(choice: typeof SAVE | typeof CANCEL, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, today: string, deps: Deps) {
+/**
+ * A person sent money "for" something and the note doesn't say which way it went. Shows both readings,
+ * with the app's sums, and waits for Save as sale / Save as expense. Other drafts in the note go with it.
+ */
+async function askWhich(action: EitherAction, drafts: Draft[], note: string, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, books: BizData, today: string, deps: Deps) {
+  const { sale, expense } = eitherDrafts(action, today);
+  const person = action.person.trim();
+  const saleProblem = checkDraft(sale, books, today);
+  const expenseProblem = checkDraft(expense, books, today);
+  const others = drafts.map((draft) => ({ draft, problem: checkDraft(draft, books, today) }));
+  const ready = others.filter((o) => o.problem === null).map((o) => o.draft);
+  const blocks = others.map(({ draft, problem }) => (problem ? `${describeDraft(draft, books)}\n⚠️ ${problem}` : describeDraft(draft, books)));
+
+  const sent = expense.amount === null ? "sent money" : `sent ${formatNaira(expense.amount)}`;
+  const question = [
+    `*${person}* ${sent}${sale.product ? ` for ${sale.product}` : ""}. Did ${person} pay you, or spend it for the shop?`,
+    `*If ${person} paid you (a sale):*\n${describeDraft(sale, books)}${saleProblem ? `\n⚠️ ${saleProblem}` : ""}`,
+    `*If ${person} spent it for the shop (an expense):*\n${describeDraft(expense, books)}${expenseProblem ? `\n⚠️ ${expenseProblem}` : ""}`,
+  ].join("\n\n");
+
+  // Neither reading can be saved yet (e.g. no amount): say what's missing instead of asking.
+  if (saleProblem && expenseProblem) {
+    await deps.clearPending(phone);
+    return deps.send(to, [...blocks, question, "Send it again with what's missing, and I'll record it."].join("\n\n"));
+  }
+  // Only one reading works: offer that one with the normal Save.
+  if (saleProblem || expenseProblem) {
+    const only = saleProblem ? expense : sale;
+    await deps.setPending(phone, { businessId: chat.businessId, note, drafts: [...ready, only] });
+    return deps.send(to, [...blocks, question, `Save the ${saleProblem ? "expense" : "sale"}?`].join("\n\n"), BUTTONS);
+  }
+  await deps.setPending(phone, { businessId: chat.businessId, note, drafts: ready, either: { person, sale, expense } });
+  const rest = ready.length > 0 ? ` The ${ready.length === 1 ? "other one is" : "others are"} saved with it.` : "";
+  return deps.send(to, [...blocks, question, `${WHICH}${rest}`].join("\n\n"), EITHER_BUTTONS);
+}
+
+/**
+ * The one reminder for a note left waiting on Save / Cancel (or sale-or-expense): what it was, with the
+ * same buttons. null when nothing is waiting on a tap. Sent by app/api/whatsapp/remind.
+ */
+export function reminderFor(pending: Pending, books: BizData): { body: string; buttons: Button[] } | null {
+  if (pending.drafts.length === 0 && !pending.either) return null;
+  const blocks = pending.drafts.map((draft) => describeDraft(draft, books));
+  if (pending.either) {
+    const { person, sale, expense } = pending.either;
+    blocks.push(`*If ${person} paid you (a sale):*\n${describeDraft(sale, books)}`, `*If ${person} spent it for the shop (an expense):*\n${describeDraft(expense, books)}`);
+  }
+  const intro = `⏰ You haven't saved or cancelled this yet: _${clip(pending.note)}_`;
+  return pending.either
+    ? { body: [intro, ...blocks, WHICH].join("\n\n"), buttons: EITHER_BUTTONS }
+    : { body: [intro, ...blocks, pending.drafts.length > 1 ? "Save these?" : "Save this?"].join("\n\n"), buttons: BUTTONS };
+}
+
+/** Auto-save is on and every draft is safe to save: record it now, and keep what Undo needs. */
+async function saveNow(drafts: Draft[], note: string, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, before: BizData, memory: ShopMemory, deps: Deps) {
+  let books = before;
+  let learned = memory;
+  const done: string[] = [];
+  for (const draft of drafts) {
+    const saved = applyDraft(books, draft);
+    books = saved.data;
+    done.push(saved.text);
+    learned = learn(learned, note, draft);
+  }
+  await deps.saveChanges(chat.businessId, before, books);
+  if (learned !== memory) await deps.saveMemory(chat.businessId, learned).catch(() => undefined);
+  await deps.setPending(phone, { businessId: chat.businessId, note, drafts: [], undo: { ...added(before, books), text: done.join(" ") } });
+  return deps.send(to, [...done.map((text) => `✓ ${text}`), "", "Saved without asking. Wrong? Tap *Undo*."].join("\n"), UNDO_BUTTON);
+}
+
+async function runCommand(asked: typeof UNDO | typeof AUTO_ON | typeof AUTO_OFF, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, deps: Deps) {
+  const memory = await deps.getMemory(chat.businessId);
+  if (asked === AUTO_ON) {
+    await deps.saveMemory(chat.businessId, withAutoSave(memory, "on"));
+    return deps.send(to, `Done. I'll save notes like these straight away.\n\n${STILL_ASKS} Tap *Undo* on any I save by myself, or type *auto-save off* to stop.`);
+  }
+  if (asked === AUTO_OFF) {
+    await deps.saveMemory(chat.businessId, withAutoSave(memory, "declined"));
+    return deps.send(to, "Okay. I'll show you every note before saving. Type *auto-save on* any time to start.");
+  }
   const pending = await deps.getPending(phone);
-  if (!pending || pending.businessId !== chat.businessId) {
-    if (pending) await deps.clearPending(phone);
-    return deps.send(to, choice === SAVE ? `Nothing is waiting to be saved.\n\n${HELP}` : "Okay.");
+  if (!pending?.undo || pending.businessId !== chat.businessId) {
+    return deps.send(to, "Nothing to undo here. Only the last note I saved by myself can be undone on WhatsApp; fix anything older in the app.");
+  }
+  const before = await deps.loadBooks(chat.businessId);
+  await deps.saveChanges(chat.businessId, before, undo(before, pending.undo));
+  await deps.clearPending(phone);
+  await deps.saveMemory(chat.businessId, reviewed(memory, "undone")).catch(() => undefined);
+  return deps.send(to, `↩️ Undone. I took out: ${pending.undo.text}\n\nSend it again the right way, and I'll show it to you before saving.`);
+}
+
+async function confirm(choice: Choice, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, today: string, deps: Deps) {
+  const pending = await deps.getPending(phone);
+  const waiting = pending !== null && pending.businessId === chat.businessId && (pending.drafts.length > 0 || pending.either !== undefined);
+  if (!waiting) {
+    if (pending && pending.businessId !== chat.businessId) await deps.clearPending(phone);
+    return deps.send(to, choice === CANCEL ? "Okay." : `Nothing is waiting to be saved.\n\n${HELP}`);
   }
   if (choice === CANCEL) {
     await deps.clearPending(phone);
+    const memory = await deps.getMemory(chat.businessId);
+    // BizBuddy read it wrong (or the owner changed their mind): the run of right answers starts again.
+    if (!pending.either) await deps.saveMemory(chat.businessId, reviewed(memory, "cancelled")).catch(() => undefined);
     return deps.send(to, "Okay, I didn't save that.");
   }
+  // A plain "yes" can't say which reading: ask again, and keep it waiting.
+  if (pending.either && choice === SAVE) return deps.send(to, WHICH, EITHER_BUTTONS);
+  const chosen = pending.either ? [choice === SAVE_SALE ? pending.either.sale : pending.either.expense] : [];
+  const drafts = [...pending.drafts, ...chosen];
 
   // Check again against the books as they are now: another phone may have changed them since.
   const before = await deps.loadBooks(chat.businessId);
@@ -136,7 +300,7 @@ async function confirm(choice: typeof SAVE | typeof CANCEL, phone: string, to: s
   const startMemory = memory;
   const done: string[] = [];
   const skipped: string[] = [];
-  for (const draft of pending.drafts) {
+  for (const draft of drafts) {
     const problem = checkDraft(draft, books, today);
     if (problem) {
       skipped.push(problem);
@@ -146,13 +310,18 @@ async function confirm(choice: typeof SAVE | typeof CANCEL, phone: string, to: s
     books = saved.data;
     done.push(saved.text);
     memory = learn(memory, pending.note, draft);
+    // Saved just as BizBuddy read it. Picking sale or expense doesn't count: BizBuddy had to ask.
+    if (!pending.either) memory = reviewed(memory, "saved");
   }
   if (done.length > 0) await deps.saveChanges(chat.businessId, before, books);
+  const offer = offerDue(memory);
+  if (offer) memory = withAutoSave(memory, "offered");
   if (memory !== startMemory) await deps.saveMemory(chat.businessId, memory).catch(() => undefined); // A missed lesson never undoes a save.
   await deps.clearPending(phone);
 
   const lines = done.map((text) => `✓ ${text}`);
   if (skipped.length > 0) lines.push(...skipped.map((problem) => `Not saved: ${problem}`));
   if (done.length > 0) lines.push("It's in your books; the app shows it next time it syncs.");
-  return deps.send(to, lines.join("\n"));
+  await deps.send(to, lines.join("\n"));
+  if (offer) await deps.send(to, OFFER, OFFER_BUTTONS);
 }

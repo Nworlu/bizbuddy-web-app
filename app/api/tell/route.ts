@@ -4,11 +4,12 @@
 // Only for signed-in accounts (the Supabase access token goes in the Authorization header), so the
 // AI provider's API key can't be spent by strangers. The note itself is not stored here. Notes the
 // owner later confirms are remembered for their shop (app/api/tell/learn). Nothing is recorded here:
-// the app shows the actions as drafts and saves only what the owner confirms.
+// the app shows the actions as drafts and saves only what the owner confirms, or, with auto-save on,
+// what is safe to save without asking.
 
 import { createClient } from "@supabase/supabase-js";
 import { interpret, TellBusyError, TellRefusedError, tellProvider } from "@/features/tell/server/interpret";
-import { memoryPromptFor } from "@/features/tell/server/memory";
+import { memoryFor } from "@/features/tell/server/memory";
 
 const MAX_MESSAGE = 600;
 const MAX_CUSTOMERS = 300;
@@ -65,9 +66,10 @@ export async function POST(request: Request) {
   if (!today) return reply(400, "Bad request.");
 
   try {
-    const memory = await memoryPromptFor(token);
-    const result = await interpret({ message, today, weekday, customers, memory });
-    return Response.json(result);
+    const { prompt, autoSave } = await memoryFor(token);
+    const result = await interpret({ message, today, weekday, customers, memory: prompt });
+    // With auto-save on, the app saves drafts that are safe to (features/tell/lib/autosave.ts) without asking.
+    return Response.json({ ...result, autoSave: autoSave === "on" });
   } catch (error) {
     if (error instanceof TellRefusedError) return reply(422, "BizBuddy couldn't read that note. Try saying it another way.");
     if (error instanceof TellBusyError) return reply(503, "BizBuddy is busy right now. Try again in a minute.");

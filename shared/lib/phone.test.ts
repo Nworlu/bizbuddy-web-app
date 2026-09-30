@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayPhone, loginEmail, normalizePhone } from "./phone";
+import { displayPhone, loginEmail, normalizePhone, phoneFromLoginEmail } from "./phone";
 
 describe("normalizePhone", () => {
   it.each(["08031234567", "0803 123 4567", "+234 803 123 4567", "2348031234567", "8031234567", "0803-123-4567"])("reads %j as the same number", (input) => {
@@ -34,5 +34,17 @@ describe("login address", () => {
 describe("displayPhone", () => {
   it("shows the number the Nigerian way", () => {
     expect(displayPhone("2348031234567")).toBe("0803 123 4567");
+  });
+});
+
+describe("phoneFromLoginEmail", () => {
+  it("reads the number back out of a login address", () => {
+    expect(phoneFromLoginEmail(loginEmail("2348031234567", "owner@gmail.com"))).toBe("2348031234567");
+  });
+
+  it("returns null for anything else", () => {
+    expect(phoneFromLoginEmail("owner@gmail.com")).toBeNull();
+    expect(phoneFromLoginEmail("owner+123@gmail.com")).toBeNull();
+    expect(phoneFromLoginEmail(null)).toBeNull();
   });
 });

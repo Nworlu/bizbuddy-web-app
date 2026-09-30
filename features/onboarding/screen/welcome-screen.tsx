@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { accountErrorMessage, createAccount, MIN_PASSWORD } from "@/shared/lib/account";
+import { accountErrorMessage, createAccount, MIN_PASSWORD, sendWhatsAppWelcome } from "@/shared/lib/account";
+import { WhatsAppOptIn } from "@/shared/ui/whatsapp-opt-in";
 import { displayPhone, normalizePhone } from "@/shared/lib/phone";
 import { createBusiness, hasRecords, loadDemoData, useBizData, useSyncMeta } from "@/shared/lib/store";
 import { accountsEnabled } from "@/shared/lib/supabase";
@@ -129,6 +130,7 @@ function Onboarding({ data }: { data: BizData }) {
   const [phone, setPhone] = useState(() => (meta ? displayPhone(meta.phone) : ""));
   const [password, setPassword] = useState("");
   const [offlineStart, setOfflineStart] = useState(false);
+  const [whatsappWelcome, setWhatsappWelcome] = useState(true);
   const [name, setName] = useState("");
   const [type, setType] = useState<BusinessType>("Fashion");
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +198,7 @@ function Onboarding({ data }: { data: BizData }) {
       // The account first: if that phone number already has one, nothing is saved here yet.
       try {
         await createAccount({ phone, password });
+        if (whatsappWelcome) sendWhatsAppWelcome({ ownerName: ownerName.trim(), shopName: name.trim() });
       } catch (e) {
         setSaving(false);
         const message = accountErrorMessage(e, "create");
@@ -270,6 +273,7 @@ function Onboarding({ data }: { data: BizData }) {
                   <p id="password-hint" className="mt-1 text-xs text-ink-muted">At least {MIN_PASSWORD} characters.</p>
                 </Field>
               )}
+              {withAccount && <WhatsAppOptIn checked={whatsappWelcome} onChange={setWhatsappWelcome} />}
             </div>
             {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
             <button type="submit" className="mt-6 w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-800">

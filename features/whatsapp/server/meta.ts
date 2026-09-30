@@ -88,3 +88,46 @@ export async function sendWhatsApp(to: string, body: string, buttons: Button[] =
   });
   if (!response.ok) throw new Error(`WhatsApp send failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
 }
+
+/**
+ * Sends an approved message template. WhatsApp only lets a business start a conversation this way:
+ * free text is allowed only within 24 hours of the person's last message. `params` fill {{1}}, {{2}}…
+ */
+export async function sendTemplate(to: string, name: string, params: string[], language = "en"): Promise<void> {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneNumberId) throw new Error("WhatsApp sending isn't set up");
+  const version = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+  const response = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name,
+        language: { code: language },
+        ...(params.length > 0 ? { components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text: text.slice(0, 60) })) }] } : {}),
+      },
+    }),
+  });
+  if (!response.ok) throw new Error(`WhatsApp template failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
+}
+
+/**
+ * Marks the sender's message read (blue ticks) and shows "typing…" in their chat until BizBuddy
+ * replies, or for up to 25 seconds. Throws if Meta refuses; callers ignore that, it's only a nicety.
+ */
+export async function showTyping(messageId: string): Promise<void> {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneNumberId) return;
+  const version = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+  const response = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", status: "read", message_id: messageId, typing_indicator: { type: "text" } }),
+  });
+  if (!response.ok) throw new Error(`WhatsApp typing indicator failed (${response.status}): ${(await response.text()).slice(0, 200)}`);
+}

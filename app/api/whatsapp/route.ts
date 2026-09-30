@@ -8,7 +8,7 @@
 import { after } from "next/server";
 import { handleMessage, type Deps } from "@/features/whatsapp/lib/conversation";
 import { clearPending, getMemory, getPending, loadBooks, markSeen, saveChanges, saveMemory, setAbout, setPending } from "@/features/whatsapp/server/books";
-import { incomingMessages, sendWhatsApp, validSignature } from "@/features/whatsapp/server/meta";
+import { incomingMessages, sendWhatsApp, showTyping, validSignature } from "@/features/whatsapp/server/meta";
 import { whoIsChatting } from "@/features/whatsapp/server/who";
 import { interpret, TellBusyError } from "@/features/tell/server/interpret";
 
@@ -38,6 +38,8 @@ const deps: Deps = {
   interpret,
   isBusy: (error) => error instanceof TellBusyError,
   send: sendWhatsApp,
+  showTyping: (messageId) =>
+    showTyping(messageId).catch((error) => console.error("WhatsApp: typing indicator failed", error instanceof Error ? error.message : error)),
   appUrl: process.env.NEXT_PUBLIC_APP_URL,
 };
 

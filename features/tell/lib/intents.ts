@@ -23,11 +23,35 @@ export type SaleAction = {
   method: PaymentMethod | null;
   date: LocalDate | null;
 };
-export type ExpenseAction = { kind: "expense"; category: ExpenseCategory | null; amount: number | null; description: string | null; date: LocalDate | null };
+export type ExpenseAction = {
+  kind: "expense";
+  category: ExpenseCategory | null;
+  amount: number | null;
+  description: string | null;
+  /** Someone on the owner's team who paid it for the shop; null when the owner paid. */
+  spent_by: string | null;
+  date: LocalDate | null;
+};
 export type PaymentAction = { kind: "payment"; customer: string | null; amount: number | null; method: PaymentMethod | null; date: LocalDate | null };
 export type QuestionAction = { kind: "question"; topic: (typeof QUESTION_TOPICS)[number]; customer: string | null; period: (typeof QUESTION_PERIODS)[number] };
 export type UnclearAction = { kind: "unclear"; reply: string };
-export type Action = SaleAction | ExpenseAction | PaymentAction | QuestionAction | UnclearAction;
+/**
+ * A named person moved money "for" something, and the note doesn't say which way: a customer paying
+ * the shop (a sale), or someone on the team spending for it (an expense). The owner picks.
+ */
+export type EitherAction = {
+  kind: "either";
+  person: string;
+  what: string | null;
+  /** What they sent or paid. */
+  amount: number | null;
+  /** The full price, when it was said ("laptop of 450k"). */
+  price: number | null;
+  category: ExpenseCategory | null;
+  method: PaymentMethod | null;
+  date: LocalDate | null;
+};
+export type Action = SaleAction | ExpenseAction | PaymentAction | QuestionAction | UnclearAction | EitherAction;
 
 export interface Interpretation {
   actions: Action[];
@@ -63,6 +87,7 @@ export const INTERPRETATION_SCHEMA = object({
           category: nullable({ type: "string", enum: [...EXPENSE_CATEGORIES] }),
           amount: naira,
           description: nullable({ type: "string" }),
+          spent_by: nullable({ type: "string" }),
           date,
         }),
         object({ kind: { type: "string", enum: ["payment"] }, customer: nullable({ type: "string" }), amount: naira, method, date }),
@@ -73,6 +98,16 @@ export const INTERPRETATION_SCHEMA = object({
           period: { type: "string", enum: [...QUESTION_PERIODS] },
         }),
         object({ kind: { type: "string", enum: ["unclear"] }, reply: { type: "string" } }),
+        object({
+          kind: { type: "string", enum: ["either"] },
+          person: { type: "string" },
+          what: nullable({ type: "string" }),
+          amount: naira,
+          price: naira,
+          category: nullable({ type: "string", enum: [...EXPENSE_CATEGORIES] }),
+          method,
+          date,
+        }),
       ],
     },
   },
@@ -103,6 +138,8 @@ export interface ExpenseDraft {
   category: ExpenseCategory;
   amount: number | null;
   description: string;
+  /** Who on the team paid it, when it wasn't the owner. Kept so BizBuddy learns who the team is. */
+  by?: string;
   date: LocalDate;
 }
 export interface PaymentDraft {
@@ -135,17 +172,69 @@ export function toDraft(action: SaleAction | ExpenseAction | PaymentAction, toda
         date: dateOrToday(action.date, today),
       };
     }
-    case "expense":
-      return { kind: "expense", category: action.category ?? "Other", amount: money(action.amount), description: (action.description ?? "").trim(), date: dateOrToday(action.date, today) };
+    case "expense": {
+      const by = (action.spent_by ?? "").trim();
+      const description = (action.description ?? "").trim();
+      return {
+        kind: "expense",
+        category: action.category ?? "Other",
+        amount: money(action.amount),
+        description: by && !description.toLowerCase().includes(by.toLowerCase()) ? [description, `paid by ${by}`].filter(Boolean).join(", ") : description,
+        ...(by ? { by } : {}),
+        date: dateOrToday(action.date, today),
+      };
+    }
     case "payment":
       return { kind: "payment", customer: (action.customer ?? "").trim(), amount: money(action.amount), method: action.method ?? "Cash", date: dateOrToday(action.date, today) };
   }
+}
+
+/** Both readings of an "either": the person as a customer paying for it, or as the team spending on it. */
+export function eitherDrafts(action: EitherAction, today: LocalDate): { sale: SaleDraft; expense: ExpenseDraft } {
+  const person = action.person.trim();
+  const amount = money(action.amount);
+  const price = money(action.price);
+  const what = (action.what ?? "").trim();
+  const date = dateOrToday(action.date, today);
+  return {
+    sale: { kind: "sale", customer: person, product: what, total: price ?? amount, paid: amount ?? 0, method: action.method ?? "Bank Transfer", date },
+    expense: { kind: "expense", category: action.category ?? "Other", amount, description: [what, person && `paid by ${person}`].filter(Boolean).join(", "), ...(person ? { by: person } : {}), date },
+  };
+}
+
+// Buying words: with one of these, money from a new person is plainly a sale.
+const BUYING = /\b(sold|sell|sells|selling|bought|buy|buys|buying|purchased?|order|ordered|orders)\b/i;
+
+/**
+ * Doesn't let the model guess which way money went for someone the shop doesn't know. A sale to a
+ * person who isn't a customer yet, from a note with no buying word ("Mordecai sent 85k for laptop"),
+ * could just as well be a team member spending for the shop, so it becomes an "either" and the owner
+ * is asked. A known customer, or "sold" / "bought" in the note, keeps the sale.
+ */
+export function settleDirection(actions: Action[], note: string, customers: string[]): Action[] {
+  if (BUYING.test(note)) return actions;
+  const known = new Set(customers.map((name) => name.trim().toLowerCase()));
+  return actions.map((action): Action => {
+    if (action.kind !== "sale" || !action.customer?.trim() || known.has(action.customer.trim().toLowerCase())) return action;
+    const paid = money(action.amount_paid);
+    const total = money(action.total_amount);
+    return {
+      kind: "either",
+      person: action.customer.trim(),
+      what: action.product,
+      amount: paid ?? total,
+      price: paid !== null && total !== null && total !== paid ? total : null,
+      category: null,
+      method: action.method,
+      date: action.date,
+    };
+  });
 }
 
 /** Reads the model's JSON. Throws if it isn't the expected shape (it should always be, with structured outputs). */
 export function parseInterpretation(text: string): Interpretation {
   const value = JSON.parse(text) as Interpretation;
   if (!value || !Array.isArray(value.actions)) throw new Error("Unexpected interpretation");
-  const kinds = new Set(["sale", "expense", "payment", "question", "unclear"]);
+  const kinds = new Set(["sale", "expense", "payment", "question", "unclear", "either"]);
   return { actions: value.actions.filter((a) => a && kinds.has(a.kind)).slice(0, 10) };
 }

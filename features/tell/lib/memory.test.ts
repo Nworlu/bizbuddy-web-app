@@ -48,6 +48,26 @@ describe("learn", () => {
   });
 });
 
+describe("the team", () => {
+  const spent: Draft = { kind: "expense", category: "Stock", amount: 85000, description: "Laptop, paid by Mordecai", by: "Mordecai", date: "2026-09-30" };
+
+  it("remembers who paid an expense for the shop, and tells the next note", () => {
+    const next = learn(EMPTY_MEMORY, "Mordecai sent 85k for laptop", spent);
+    expect(next.team).toEqual(["Mordecai"]);
+    expect(next.lessons[0].meant).toContain("Mordecai paid for the shop");
+    expect(memoryForPrompt(next)).toContain("Their team (people who spend money for the shop, not customers): Mordecai.");
+  });
+
+  it("takes someone off the team once they're recorded as a customer", () => {
+    const onTeam = learn(EMPTY_MEMORY, "Mordecai sent 85k for laptop", spent);
+    expect(learn(onTeam, "Mordecai bought a phone", { ...sale, customer: "mordecai" }).team).toEqual([]);
+  });
+
+  it("keeps the team when the memory is read back", () => {
+    expect(parseMemory({ products: [], writesThousands: false, lessons: [], team: ["Mordecai", 3] }).team).toEqual(["Mordecai"]);
+  });
+});
+
 describe("memoryForPrompt", () => {
   it("is empty until they have confirmed a note", () => {
     expect(memoryForPrompt(EMPTY_MEMORY)).toBeNull();
@@ -69,6 +89,9 @@ describe("parseMemory", () => {
       products: ["Sneakers"],
       writesThousands: true,
       lessons: [{ note: "sold shoes", meant: "a sale" }],
+      team: [],
+      streak: 0,
+      autoSave: "off",
     });
   });
 

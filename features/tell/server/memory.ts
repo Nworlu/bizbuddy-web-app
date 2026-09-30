@@ -3,7 +3,8 @@
 // with the secret key (features/whatsapp/server/books.ts) when it replies.
 
 import { createClient } from "@supabase/supabase-js";
-import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, confirmedDraft, type ShopMemory } from "../lib/memory";
+import { offerDue, reviewed, withAutoSave, type Review } from "../lib/autosave";
+import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, confirmedDraft, type AutoSave, type ShopMemory } from "../lib/memory";
 
 function db(token: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,30 +13,52 @@ function db(token: string) {
   return createClient(url, key, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-/** What to send with the next note. Empty when this shop has confirmed nothing, or the table isn't there yet. */
-export async function memoryPromptFor(token: string): Promise<string | null> {
+/** What to send with the next note, and whether to save it without asking. Empty when there's nothing yet. */
+export async function memoryFor(token: string): Promise<{ prompt: string | null; autoSave: AutoSave }> {
+  const client = db(token);
+  if (!client) return { prompt: null, autoSave: "off" };
+  const { data, error } = await client.from("shop_memory").select("memory").maybeSingle();
+  if (error || !data) return { prompt: null, autoSave: "off" };
+  const memory = parseMemory(data.memory);
+  return { prompt: memoryForPrompt(memory), autoSave: memory.autoSave };
+}
+
+/** Loads this owner's memory, lets `change` update it, and saves it if it changed. Null when that isn't possible. */
+async function updateMemory(token: string, change: (memory: ShopMemory) => ShopMemory): Promise<ShopMemory | null> {
   const client = db(token);
   if (!client) return null;
-  const { data, error } = await client.from("shop_memory").select("memory").maybeSingle();
-  if (error || !data) return null;
-  return memoryForPrompt(parseMemory(data.memory));
+  const { data: shop, error: shopError } = await client.from("businesses").select("id").maybeSingle();
+  if (shopError || !shop) return null;
+  const { data: row } = await client.from("shop_memory").select("memory").eq("business_id", shop.id).maybeSingle();
+  const current: ShopMemory = row ? parseMemory(row.memory) : EMPTY_MEMORY;
+  const next = change(current);
+  if (next === current) return current;
+  const { error } = await client.from("shop_memory").upsert({ business_id: shop.id, memory: next, updated_at: new Date().toISOString() });
+  return error ? null : next;
 }
 
 /**
- * Remembers a note the owner confirmed, including any corrections they made before saving.
- * Does nothing when the draft isn't complete, or when memory can't be saved. The sale itself
- * is already saved by then; a missed lesson only means the next note isn't taught by this one.
+ * What the owner did with a draft. A saved note (with any corrections they made) is remembered, and
+ * the run of drafts saved unchanged goes up or back to 0. Returns true when it's time to offer auto-save.
+ * The record itself is already saved by then; a failure here only means this note doesn't teach.
  */
-export async function rememberConfirmed(token: string, note: string, draft: unknown): Promise<void> {
+export async function reviewNote(token: string, note: string, draft: unknown, review: Review): Promise<boolean> {
   const confirmed = confirmedDraft(draft);
-  if (!confirmed) return;
-  const client = db(token);
-  if (!client) return;
-  const { data: shop, error: shopError } = await client.from("businesses").select("id").maybeSingle();
-  if (shopError || !shop) return;
-  const { data: row } = await client.from("shop_memory").select("memory").eq("business_id", shop.id).maybeSingle();
-  const current: ShopMemory = row ? parseMemory(row.memory) : EMPTY_MEMORY;
-  const next = learn(current, note, confirmed);
-  if (next === current) return;
-  await client.from("shop_memory").upsert({ business_id: shop.id, memory: next, updated_at: new Date().toISOString() });
+  let offer = false;
+  await updateMemory(token, (memory) => {
+    let next = reviewed(confirmed ? learn(memory, note, confirmed) : memory, review);
+    offer = offerDue(next);
+    if (offer) next = withAutoSave(next, "offered");
+    return next;
+  });
+  return offer;
+}
+
+export async function autoSaveFor(token: string): Promise<AutoSave> {
+  return (await memoryFor(token)).autoSave;
+}
+
+/** Turns auto-save on, or off ("declined": BizBuddy won't offer again; Settings can turn it back on). */
+export async function setAutoSave(token: string, on: boolean): Promise<boolean> {
+  return (await updateMemory(token, (memory) => withAutoSave(memory, on ? "on" : "declined"))) !== null;
 }

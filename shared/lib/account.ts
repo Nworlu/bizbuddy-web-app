@@ -78,3 +78,19 @@ export async function sessionUserId(): Promise<string | null> {
   const { data } = await sb.auth.getSession();
   return data.session?.user.id ?? null;
 }
+
+/**
+ * Asks the server to send this account its WhatsApp welcome (once, to the account's own number).
+ * Fire and forget: a missing template or no connection never gets in the way of signing up.
+ */
+export function sendWhatsAppWelcome(names: { ownerName: string; shopName: string }): void {
+  void (async () => {
+    const session = (await supabase()?.auth.getSession())?.data.session;
+    if (!session) return;
+    await fetch("/api/whatsapp/welcome", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(names),
+    }).catch(() => undefined);
+  })();
+}

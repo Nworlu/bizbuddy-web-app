@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerToText, CANCEL, decision, lagosToday, SAVE } from "./text";
+import { answerToText, CANCEL, decision, lagosToday, SAVE, SAVE_EXPENSE, SAVE_SALE } from "./text";
 
 describe("decision", () => {
   it("reads button taps", () => {
@@ -13,6 +13,13 @@ describe("decision", () => {
 
   it.each(["no", "NO.", "cancel", "don't save"])("reads %j as Cancel", (text) => {
     expect(decision({ text })).toBe(CANCEL);
+  });
+
+  it("reads which way the money went, when BizBuddy asked", () => {
+    expect(decision({ buttonId: "save-sale" })).toBe(SAVE_SALE);
+    expect(decision({ text: "It's a sale" })).toBe(SAVE_SALE);
+    expect(decision({ text: "expense" })).toBe(SAVE_EXPENSE);
+    expect(decision({ text: "Don’t save" })).toBe(CANCEL);
   });
 
   it("treats anything else as a new note", () => {

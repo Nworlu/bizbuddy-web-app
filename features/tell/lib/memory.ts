@@ -8,6 +8,7 @@ import type { Draft } from "./intents";
 
 const LESSONS = 8;
 const PRODUCTS = 8;
+const TEAM = 12;
 const NOTE_MAX = 180;
 const TEXT_MAX = 80;
 
@@ -20,9 +21,18 @@ export type ShopMemory = {
   writesThousands: boolean;
   /** Confirmed notes, newest first. */
   lessons: Lesson[];
+  /** People who spend money for the shop (from confirmed expenses "paid by" them), newest first. */
+  team: string[];
+  /** Drafts saved as BizBuddy read them, in a row. A correction, cancel, or undo starts again at 0. */
+  streak: number;
+  /** Saving without asking (lib/autosave.ts): never offered, offered, turned on, or turned down. */
+  autoSave: AutoSave;
 };
 
-export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [] };
+export type AutoSave = "off" | "offered" | "on" | "declined";
+const AUTO_SAVE_STATES: readonly AutoSave[] = ["off", "offered", "on", "declined"];
+
+export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off" };
 
 function clip(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
@@ -61,11 +71,13 @@ export function confirmedDraft(value: unknown): Draft | null {
     const category = oneOf(row.category, EXPENSE_CATEGORIES);
     const amount = whole(row.amount);
     if (!category || amount === null) return null;
+    const by = clip(typeof row.by === "string" ? row.by : "", TEXT_MAX);
     return {
       kind: "expense",
       category,
       amount: amount > 0 ? amount : null,
       description: clip(typeof row.description === "string" ? row.description : "", TEXT_MAX),
+      ...(by ? { by } : {}),
       date,
     };
   }
@@ -91,7 +103,7 @@ function meantOf(draft: Draft): string | null {
       return `a sale: ${draft.customer} bought ${draft.product} for ${formatNaira(draft.total)}, paid ${formatNaira(draft.paid)} by ${draft.method}`;
     case "expense":
       if (draft.amount === null) return null;
-      return `an expense: ${formatNaira(draft.amount)} on ${draft.category}${draft.description ? ` (${draft.description})` : ""}`;
+      return `an expense${draft.by ? ` ${draft.by} paid for the shop` : ""}: ${formatNaira(draft.amount)} on ${draft.category}${draft.description ? ` (${draft.description})` : ""}`;
     case "payment":
       if (!draft.customer || draft.amount === null) return null;
       return `a payment: ${draft.customer} paid ${formatNaira(draft.amount)} by ${draft.method}`;
@@ -113,13 +125,22 @@ export function learn(memory: ShopMemory, note: string, draft: Draft): ShopMemor
     ? [product, ...memory.products.filter((item) => item.toLowerCase() !== product.toLowerCase())].slice(0, PRODUCTS)
     : memory.products;
   const writesThousands = memory.writesThousands || /\d+(?:\.\d+)?\s*[km]\b/i.test(clean);
-  return { products, writesThousands, lessons };
+  return { ...memory, products, writesThousands, lessons, team: nextTeam(memory.team, draft) };
+}
+
+/** Someone who paid an expense for the shop joins the team; someone recorded as a customer leaves it. */
+function nextTeam(team: string[], draft: Draft): string[] {
+  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  if (draft.kind === "expense" && draft.by) return [draft.by, ...team.filter((name) => !same(name, draft.by!))].slice(0, TEAM);
+  if (draft.kind !== "expense" && draft.customer && team.some((name) => same(name, draft.customer))) return team.filter((name) => !same(name, draft.customer));
+  return team;
 }
 
 /** Text for the next note's user message. Null until this shop has confirmed something. */
 export function memoryForPrompt(memory: ShopMemory): string | null {
-  if (memory.lessons.length === 0) return null;
+  if (memory.lessons.length === 0 && memory.team.length === 0) return null;
   const profile = [
+    memory.team.length > 0 ? `Their team (people who spend money for the shop, not customers): ${memory.team.join(", ")}.` : "",
     memory.products.length > 0 ? `They sell: ${memory.products.join(", ")}.` : "",
     memory.writesThousands ? "They write thousands as “85k” and millions as “1.2m”." : "",
   ].filter(Boolean);
@@ -151,5 +172,9 @@ export function parseMemory(value: unknown): ShopMemory {
         .filter((item): item is Lesson => item !== null)
         .slice(0, LESSONS)
     : [];
-  return { products, writesThousands: row.writesThousands === true, lessons };
+  const team = Array.isArray(row.team)
+    ? row.team.filter((item): item is string => typeof item === "string").map((item) => clip(item, TEXT_MAX)).filter(Boolean).slice(0, TEAM)
+    : [];
+  const streak = typeof row.streak === "number" && Number.isSafeInteger(row.streak) && row.streak > 0 ? row.streak : 0;
+  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off" };
 }

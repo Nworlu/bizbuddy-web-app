@@ -7,6 +7,7 @@ import { formatDate, formatNaira } from "@/shared/lib/format";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { PlusIcon, SearchIcon } from "@/shared/ui/icons";
 import { PeriodFilter, usePeriodRange } from "@/shared/ui/period-filter";
+import { routes } from "@/shared/lib/routes";
 
 export function ExpensesPage() {
   const { data } = useBiz();
@@ -81,7 +82,7 @@ export function ExpensesPage() {
             <ul className="space-y-2">
               {visible.map((expense) => (
                 <li key={expense.id}>
-                  <Link href={`/expenses/${expense.id}`} className="flex items-start justify-between gap-3 rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
+                  <Link href={routes.expense(expense.id)} className="flex items-start justify-between gap-3 rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-ink">{expense.category}</span>
                       {expense.description && <span className="mt-0.5 block truncate text-xs text-ink-muted">{expense.description}</span>}

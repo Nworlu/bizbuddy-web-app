@@ -6,6 +6,7 @@ import { paidForSale, saleBalance } from "@/shared/lib/finance";
 import { formatDate, formatNaira } from "@/shared/lib/format";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { PlusIcon, SearchIcon } from "@/shared/ui/icons";
+import { routes } from "@/shared/lib/routes";
 
 export function SalesPage() {
   const { data } = useBiz();
@@ -81,7 +82,7 @@ export function SalesPage() {
         <ul className="space-y-2">
           {visible.map((row) => (
             <li key={row.sale.id}>
-              <Link href={`/sales/${row.sale.id}`} className="block rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
+              <Link href={routes.sale(row.sale.id)} className="block rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
                 <span className="flex items-start justify-between gap-3">
                   <span className="min-w-0">
                     <span className="flex items-center gap-2">

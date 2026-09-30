@@ -5,6 +5,7 @@ import { PERIODS, periodRange, type Period } from "@/shared/lib/dates";
 import { customerTotals, customersOwing, expenseSummary, periodSummary } from "@/shared/lib/finance";
 import { formatNaira } from "@/shared/lib/format";
 import type { BizData, Customer } from "@/shared/lib/types";
+import { routes } from "@/shared/lib/routes";
 
 export interface Answer {
   text: string;
@@ -53,7 +54,7 @@ export function answerQuestion(question: string, data: BizData, now = new Date()
     const { totalSales, totalPaid } = customerTotals(c.id, data);
     return {
       text: totalSales > 0 ? `${c.name} has bought ${formatNaira(totalSales)} from you in total, and paid ${formatNaira(totalPaid)}.` : `${c.name} hasn't bought anything yet.`,
-      link: { label: `Open ${c.name}`, href: `/customers/${c.id}` },
+      link: { label: `Open ${c.name}`, href: routes.customer(c.id) },
     };
   }
   if (named.length > 0 && (aboutDebt || has(q, ["pay", "paid", "much"]))) {
@@ -62,12 +63,12 @@ export function answerQuestion(question: string, data: BizData, now = new Date()
       const { balance, totalSales } = customerTotals(c.id, data);
       return {
         text: balance > 0 ? `${c.name} owes you ${formatNaira(balance)}.` : totalSales > 0 ? `${c.name} has paid everything. They owe you nothing.` : `${c.name} hasn't bought anything yet.`,
-        link: { label: `Open ${c.name}`, href: `/customers/${c.id}` },
+        link: { label: `Open ${c.name}`, href: routes.customer(c.id) },
       };
     }
     return {
       text: `You have ${named.length} customers with that name:`,
-      rows: named.map((c) => ({ label: c.name, value: `owes ${formatNaira(customerTotals(c.id, data).balance)}`, href: `/customers/${c.id}` })),
+      rows: named.map((c) => ({ label: c.name, value: `owes ${formatNaira(customerTotals(c.id, data).balance)}`, href: routes.customer(c.id) })),
     };
   }
 
@@ -76,7 +77,7 @@ export function answerQuestion(question: string, data: BizData, now = new Date()
     if (owing.length === 0) return { text: "Nobody owes you money right now." };
     return {
       text: owing.length === 1 ? "One customer owes you money:" : `${owing.length} customers owe you money:`,
-      rows: owing.map(({ customer, balance }) => ({ label: customer.name, value: formatNaira(balance), href: `/customers/${customer.id}` })),
+      rows: owing.map(({ customer, balance }) => ({ label: customer.name, value: formatNaira(balance), href: routes.customer(customer.id) })),
       total: { label: "Total outstanding", value: formatNaira(owing.reduce((sum, x) => sum + x.balance, 0)) },
       link: { label: "See all customers", href: "/customers" },
     };

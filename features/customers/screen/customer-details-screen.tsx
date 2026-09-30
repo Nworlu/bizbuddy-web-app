@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { today } from "@/shared/lib/dates";
 import { allocatePayment, customerHistory, customerTotals, owedOn, type CustomerEvent } from "@/shared/lib/finance";
@@ -11,6 +12,13 @@ import { PAYMENT_METHODS, type BizData, type Customer, type PaymentMethod } from
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { DeletePaymentButton } from "@/shared/ui/delete-payment-button";
 import { CustomerAvatar } from "../components/customer-avatar";
+import { routes } from "@/shared/lib/routes";
+
+/** Route entry: the id comes from ?id= so the page is static and opens offline. Keyed so forms reset between records. */
+export function CustomerDetailsRoute() {
+  const id = useSearchParams().get("id") ?? "";
+  return <CustomerDetailsPage key={id} id={id} />;
+}
 
 export function CustomerDetailsPage({ id }: { id: string }) {
   const { data } = useBiz();
@@ -42,7 +50,7 @@ export function CustomerDetailsPage({ id }: { id: string }) {
             <p className="text-sm text-ink-muted">No phone number</p>
           )}
         </div>
-        <Link href={`/customers/${customer.id}/edit`} className="shrink-0 rounded-xl bg-stone-100 px-4 py-2 text-sm font-medium text-ink hover:bg-stone-200">
+        <Link href={routes.editCustomer(customer.id)} className="shrink-0 rounded-xl bg-stone-100 px-4 py-2 text-sm font-medium text-ink hover:bg-stone-200">
           Edit
         </Link>
       </div>
@@ -62,7 +70,7 @@ export function CustomerDetailsPage({ id }: { id: string }) {
         <p className="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-3 text-center text-sm font-medium text-brand-800">Paid up. {customer.name} owes you nothing.</p>
       ) : null}
 
-      <Link href={`/sales/new?customer=${customer.id}`} className="mt-3 block w-full rounded-xl bg-stone-100 py-3 text-center text-sm font-medium text-ink hover:bg-stone-200">
+      <Link href={routes.newSaleFor(customer.id)} className="mt-3 block w-full rounded-xl bg-stone-100 py-3 text-center text-sm font-medium text-ink hover:bg-stone-200">
         Record a sale
       </Link>
 
@@ -218,7 +226,7 @@ function HistoryRow({ event, data }: { event: CustomerEvent; data: BizData }) {
     const { sale, paid, balance } = event;
     return (
       <li>
-        <Link href={`/sales/${sale.id}`} className="block rounded-xl border border-stone-200 bg-white p-3.5 transition-colors hover:border-stone-300 hover:bg-stone-50">
+        <Link href={routes.sale(sale.id)} className="block rounded-xl border border-stone-200 bg-white p-3.5 transition-colors hover:border-stone-300 hover:bg-stone-50">
           <span className="flex items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-ink">{sale.product}</span>

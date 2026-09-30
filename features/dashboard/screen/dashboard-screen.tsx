@@ -10,6 +10,7 @@ import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ArrowDownIcon, ArrowUpIcon, AskIcon, CheckIcon, ChevronRightIcon, PlusIcon } from "@/shared/ui/icons";
 import { PeriodFilter, usePeriodRange } from "@/shared/ui/period-filter";
 import { SUGGESTED_QUESTIONS } from "../content/suggested-questions";
+import { routes } from "@/shared/lib/routes";
 
 export function Dashboard() {
   const { data, business } = useBiz();
@@ -69,7 +70,7 @@ export function Dashboard() {
               <ul className="-mx-2 space-y-1">
                 {owing.slice(0, 5).map(({ customer, balance }) => (
                   <li key={customer.id}>
-                    <Link href={`/customers/${customer.id}`} className="flex items-center justify-between gap-3 rounded-xl p-2 transition-colors hover:bg-stone-50">
+                    <Link href={routes.customer(customer.id)} className="flex items-center justify-between gap-3 rounded-xl p-2 transition-colors hover:bg-stone-50">
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar name={customer.name} />
                         <span className="truncate text-sm font-medium">{customer.name}</span>

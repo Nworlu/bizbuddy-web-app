@@ -1,7 +1,11 @@
-import { RecordSalePage } from "@/features/sales/screen/record-sale-screen";
+import { Suspense } from "react";
+import { RecordSaleRoute } from "@/features/sales/screen/record-sale-screen";
 
-// ?customer=<id> fills in the customer, e.g. from "Record a sale" on a customer's page.
-export default async function Page({ searchParams }: { searchParams: Promise<{ customer?: string | string[] }> }) {
-  const { customer } = await searchParams;
-  return <RecordSalePage customerId={typeof customer === "string" ? customer : undefined} />;
+// Static page: ?customer=<id> is read in the browser (see shared/lib/routes.ts).
+export default function Page() {
+  return (
+    <Suspense>
+      <RecordSaleRoute />
+    </Suspense>
+  );
 }

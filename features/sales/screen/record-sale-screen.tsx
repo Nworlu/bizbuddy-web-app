@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { today } from "@/shared/lib/dates";
 import { formatNaira, parseNaira } from "@/shared/lib/format";
@@ -9,6 +9,12 @@ import { findCustomerByName, recordSale } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+
+/** Route entry: ?customer=<id> fills in the customer. Read in the browser so the page stays static and opens offline. */
+export function RecordSaleRoute() {
+  const customerId = useSearchParams().get("customer") ?? undefined;
+  return <RecordSalePage key={customerId ?? ""} customerId={customerId} />;
+}
 
 export function RecordSalePage({ customerId }: { customerId?: string } = {}) {
   const { data } = useBiz();

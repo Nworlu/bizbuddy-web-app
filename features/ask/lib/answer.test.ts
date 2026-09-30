@@ -20,7 +20,7 @@ describe("who owes me (BIZBUDDY_PLAN.md §13)", () => {
     const a = ask(q);
     expect(a.rows?.map((r) => `${r.label} ${r.value}`)).toEqual(["Chinedu Eze ₦25,000", "Sarah Ibrahim ₦20,000", "David Okafor ₦15,000"]);
     expect(a.total).toEqual({ label: "Total outstanding", value: "₦60,000" });
-    expect(a.rows?.[0].href).toBe("/customers/c3");
+    expect(a.rows?.[0].href).toBe("/customers/view?id=c3");
   });
 
   it("says so when nobody owes", () => {
@@ -40,7 +40,7 @@ describe("one customer", () => {
   });
 
   it("links to the customer", () => {
-    expect(ask("How much does David owe?").link).toEqual({ label: "Open David Okafor", href: "/customers/c1" });
+    expect(ask("How much does David owe?").link).toEqual({ label: "Open David Okafor", href: "/customers/view?id=c1" });
   });
 
   it("lists every customer who shares the first name", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { today } from "@/shared/lib/dates";
 import { formatDate, formatNaira, parseNaira } from "@/shared/lib/format";
@@ -10,6 +10,12 @@ import { showToast } from "@/shared/lib/toast";
 import { EXPENSE_CATEGORIES, type Expense, type ExpenseCategory } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+
+/** Route entry: the id comes from ?id= so the page is static and opens offline. Keyed so forms reset between records. */
+export function EditExpenseRoute() {
+  const id = useSearchParams().get("id") ?? "";
+  return <EditExpensePage key={id} id={id} />;
+}
 
 export function EditExpensePage({ id }: { id: string }) {
   const { data } = useBiz();

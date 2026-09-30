@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { paidForSale, paymentGroup, saleBalance, sharedPaymentsForSale } from "@/shared/lib/finance";
 import { today } from "@/shared/lib/dates";
@@ -12,6 +12,13 @@ import { PAYMENT_METHODS, type BizData, type PaymentMethod, type Sale } from "@/
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { DeletePaymentButton } from "@/shared/ui/delete-payment-button";
+import { routes } from "@/shared/lib/routes";
+
+/** Route entry: the id comes from ?id= so the page is static and opens offline. Keyed so forms reset between records. */
+export function SaleDetailsRoute() {
+  const id = useSearchParams().get("id") ?? "";
+  return <SaleDetailsPage key={id} id={id} />;
+}
 
 export function SaleDetailsPage({ id }: { id: string }) {
   const { data } = useBiz();
@@ -49,7 +56,7 @@ export function SaleDetailsPage({ id }: { id: string }) {
             {owing === 0 ? "Paid in full" : "Still owing"}
           </span>
         </div>
-        <Link href={`/sales/${sale.id}/edit`} className="shrink-0 rounded-xl bg-stone-100 px-4 py-2 text-sm font-medium text-ink hover:bg-stone-200">
+        <Link href={routes.editSale(sale.id)} className="shrink-0 rounded-xl bg-stone-100 px-4 py-2 text-sm font-medium text-ink hover:bg-stone-200">
           Edit
         </Link>
       </div>
@@ -99,7 +106,7 @@ export function SaleDetailsPage({ id }: { id: string }) {
       {owing > 0 && <PaymentForm saleId={sale.id} owing={owing} customerName={customerName} />}
 
       {customer && (
-        <Link href={`/customers/${customer.id}`} className="mt-3 block w-full rounded-xl bg-stone-100 py-3 text-center text-sm font-medium text-ink hover:bg-stone-200">
+        <Link href={routes.customer(customer.id)} className="mt-3 block w-full rounded-xl bg-stone-100 py-3 text-center text-sm font-medium text-ink hover:bg-stone-200">
           View {customerName}
         </Link>
       )}

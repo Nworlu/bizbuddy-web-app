@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { deleteCustomer, findCustomerByName, updateCustomer } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import type { BizData, Customer } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { routes } from "@/shared/lib/routes";
+
+/** Route entry: the id comes from ?id= so the page is static and opens offline. Keyed so forms reset between records. */
+export function EditCustomerRoute() {
+  const id = useSearchParams().get("id") ?? "";
+  return <EditCustomerPage key={id} id={id} />;
+}
 
 export function EditCustomerPage({ id }: { id: string }) {
   const { data } = useBiz();
@@ -52,7 +59,7 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
     try {
       updateCustomer({ customerId: customer.id, name, phone });
       showToast("Customer updated.");
-      router.push(`/customers/${customer.id}`);
+      router.push(routes.customer(customer.id));
     } catch {
       setSaving(false);
       setErrors({ form: "This browser couldn't save the changes. Check that site data is allowed, then try again." });
@@ -75,7 +82,7 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6 md:px-8 md:py-8">
-      <Link href={`/customers/${customer.id}`} className="text-sm font-medium text-ink-muted hover:text-ink">← Back to {customer.name}</Link>
+      <Link href={routes.customer(customer.id)} className="text-sm font-medium text-ink-muted hover:text-ink">← Back to {customer.name}</Link>
       <h1 className="mt-4 text-2xl font-bold text-ink">Edit customer</h1>
 
       <form onSubmit={submit} className="mt-6 space-y-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6" noValidate>
@@ -115,7 +122,7 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
         {errors.form && <p role="alert" className="text-sm text-rose-700">{errors.form}</p>}
 
         <div className="flex gap-2">
-          <Link href={`/customers/${customer.id}`} className="flex-1 rounded-xl bg-stone-100 py-3.5 text-center text-sm font-medium text-ink hover:bg-stone-200">Cancel</Link>
+          <Link href={routes.customer(customer.id)} className="flex-1 rounded-xl bg-stone-100 py-3.5 text-center text-sm font-medium text-ink hover:bg-stone-200">Cancel</Link>
           <button type="submit" disabled={saving} className="flex-2 rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white hover:bg-brand-800 disabled:opacity-60">
             {saving ? "Saving…" : "Save changes"}
           </button>

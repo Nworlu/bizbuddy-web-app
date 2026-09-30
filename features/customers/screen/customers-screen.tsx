@@ -7,6 +7,7 @@ import { formatNaira } from "@/shared/lib/format";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { PlusIcon, SearchIcon } from "@/shared/ui/icons";
 import { CustomerAvatar } from "../components/customer-avatar";
+import { routes } from "@/shared/lib/routes";
 
 export function CustomersPage() {
   const { data } = useBiz();
@@ -74,7 +75,7 @@ export function CustomersPage() {
         <ul className="space-y-2">
           {visible.map(({ customer, balance }) => (
             <li key={customer.id}>
-              <Link href={`/customers/${customer.id}`} className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
+              <Link href={routes.customer(customer.id)} className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-stone-300 hover:bg-stone-50">
                 <CustomerAvatar name={customer.name} owing={balance > 0} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-ink">{customer.name}</span>

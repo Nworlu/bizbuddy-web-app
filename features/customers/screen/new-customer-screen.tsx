@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { addCustomer, findCustomerByName } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { routes } from "@/shared/lib/routes";
 
 export function NewCustomerPage() {
   const { data } = useBiz();
@@ -31,7 +32,7 @@ export function NewCustomerPage() {
     try {
       const customer = addCustomer({ name, phone });
       showToast(`${customer.name} added.`);
-      router.push(`/customers/${customer.id}`);
+      router.push(routes.customer(customer.id));
     } catch {
       setSaving(false);
       setErrors({ form: "This browser couldn't save the customer. Check that site data is allowed, then try again." });
@@ -62,7 +63,7 @@ export function NewCustomerPage() {
           {/* Once saved, the new customer matches their own name; don't flash the warning before the redirect. */}
           {existing && !errors.name && !saving && (
             <p className="mt-1 text-xs text-ink-muted">
-              <Link href={`/customers/${existing.id}`} className="font-medium text-brand-700 hover:text-brand-800">{existing.name}</Link> is already a customer.
+              <Link href={routes.customer(existing.id)} className="font-medium text-brand-700 hover:text-brand-800">{existing.name}</Link> is already a customer.
             </p>
           )}
         </div>

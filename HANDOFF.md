@@ -4,7 +4,7 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, Settings (edit business details, record counts, sample shop, delete everything), editing or deleting sales, payments, expenses, and customers, the polish from the review, a Custom date range, and an offline banner. Every V0.1 screen and spec item is built.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, Settings (edit business details, record counts, sample shop, delete everything), editing or deleting sales, payments, expenses, and customers, the polish from the review, a Custom date range, an offline banner, and a PWA that installs on the home screen and opens with no internet. Every V0.1 screen and spec item is built.
 
 The next task is **putting it in front of real shop owners**, and deciding on **accounts and a server**. See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
@@ -57,15 +57,16 @@ app/
   (app)/dashboard/page.tsx     dashboard  (not / — that URL is the landing page)
   (app)/sales/page.tsx         sales list
   (app)/sales/new/page.tsx     Record Sale; ?customer=<id> fills in the customer
-  (app)/sales/[id]/page.tsx    sale details: record or delete a payment, delete the sale
-  (app)/sales/[id]/edit/page.tsx  edit a sale (customer, product, total, date)
+  (app)/sales/view/page.tsx    sale details (?id=): record or delete a payment, delete the sale
+  (app)/sales/edit/page.tsx    edit a sale (?id=): customer, product, total, date
   (app)/customers/page.tsx     customers list, who owes what
-  (app)/customers/[id]/page.tsx  customer page: totals, history, record payment (oldest sale first)
+  (app)/customers/view/page.tsx  customer page (?id=): totals, history, record payment (oldest sale first)
   (app)/customers/new/page.tsx add customer
-  (app)/customers/[id]/edit/page.tsx  edit a customer's name or phone, or delete one with no sales
+  (app)/customers/edit/page.tsx  edit a customer (?id=): name or phone, or delete one with no sales
   (app)/expenses/page.tsx      expenses list: period filter, total, per-category totals, search
   (app)/expenses/new/page.tsx  Record Expense
-  (app)/expenses/[id]/page.tsx edit or delete an expense (same form as Record Expense)
+  (app)/expenses/edit/page.tsx edit or delete an expense (?id=), same form as Record Expense
+  manifest.ts, apple-icon.png  install on the home screen (icons in public/)
   (app)/ask/page.tsx           Ask BizBuddy chat; answers ?q= from the dashboard (Suspense for useSearchParams)
   (app)/settings/page.tsx      Settings: business details, record counts, sample shop, delete everything
 
@@ -116,7 +117,9 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 15. **Ask BizBuddy is keyword matching, not AI** (`features/ask/lib/answer.ts`). It answers the V0.1 questions in `BIZBUDDY_PLAN.md` §13: who owes me, how much a named customer owes or bought, sales, expenses, and money collected, for today, this week, this month (the default), or last month. Every number comes from `finance.ts`. Anything else gets suggested questions. The chat is not saved.
 16. **Fixing mistakes keeps the money honest.** Every delete asks first (`shared/ui/confirm-dialog.tsx`). Deleting a sale deletes its payments. A sale that received part of a split payment can't be deleted or moved to another customer until that payment is deleted, so received money never disappears silently. A sale's total can't drop below what's been paid, and its date can't be after a payment on it. A split payment is deleted whole. Payments can't be edited: delete and record again. A customer with sales can't be deleted: delete or move their sales first.
 17. **Periods.** The dashboard and Expenses share `usePeriodRange()` and `<PeriodFilter>` (`shared/ui/period-filter.tsx`): Today, This Week, This Month (the default), Last Month, and Custom with From and To dates (no future dates; picked out of order, they're swapped by `customRange()`). Sentences use `periodPhrase()` ("this month", "from 1 Sept 2026 to 15 Sept 2026"). Ask BizBuddy uses the presets only.
-18. **Offline.** `<OfflineBanner>` in the app shell shows while `navigator.onLine` is false. It says records are saved on this phone and recording still works, and that pages not opened yet may not load. It must never say anything was synced: there is no server.
+18. **Offline.** `<OfflineBanner>` in the app shell shows while `navigator.onLine` is false. It says BizBuddy still works and records are saved on this phone. It must never say anything was synced: there is no server.
+19. **BizBuddy is a PWA and every page is static.** Record pages take the id from the query string (`/sales/view?id=…`, built by `shared/lib/routes.ts`), never the path: a `/sales/[id]` page is built per id on the server, so a sale recorded offline could not be opened. Don't add dynamic `[param]` routes or read `searchParams` in a page's server component; read `?id=` with `useSearchParams` in a client "Route" component inside `<Suspense>`. `npm run build` should list every route as ○ (Static).
+20. **The service worker** is `public/sw.js`, registered by `shared/ui/service-worker.tsx` in production only. On install it saves every page listed in `APP_PAGES` plus the scripts and styles each uses. Pages are network-first with a 3-second timeout, then the saved copy (ignoring the query string); `/_next/static` is cache-first; business records are never cached here. **When you add a page, add it to `APP_PAGES`.** Bump `VERSION` when the caching rules change. To test offline: `npm run build && npx next start -p 3200`, open it, wait for the service worker, then stop the server and keep using the app. The service worker doesn't run under `npm run dev`.
 
 ## Styling rules
 
@@ -132,7 +135,8 @@ V0.1 is built: every screen in `BizBuddy_Web_App.md` §49 exists, mistakes can b
 
 1. **Put it in front of real shop owners** (`BIZBUDDY_PLAN.md` §38): deploy it, give it to a few Nigerian shop owners, watch them record a real day, and write down every problem. Let that decide what comes next.
 2. **Accounts and a server** before shop owners rely on it day to day. Records live in one browser today, so a new phone or cleared site data loses them. Needs decisions (see open questions). Only `shared/lib/store.ts` should need to change underneath the screens.
-3. **Later, from the spec:** pages that load offline (a service worker), and WhatsApp (Phase 3 in the plan).
+3. **Sync, with the server.** The app already works offline. When records move to a server, keep them on the phone first, queue each change, and send the queue when the connection returns; show "saved on this phone" until the server confirms (UX spec §28).
+4. **Later:** WhatsApp (Phase 3 in the plan).
 
 ## Figma Make export: known bugs (don't port these)
 

@@ -2,21 +2,26 @@
 
 import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { resetAll, updateBusiness } from "@/shared/lib/store";
+import { resetAll, updateBusiness, useSyncMeta } from "@/shared/lib/store";
+import { accountsEnabled } from "@/shared/lib/supabase";
 import { showToast } from "@/shared/lib/toast";
 import { BUSINESS_TYPES, type BizData, type Business, type BusinessType } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { AccountSection } from "../components/account-section";
 
 export function SettingsPage() {
   const { data, business } = useBiz();
+  const signedIn = useSyncMeta() !== null;
 
   return (
     <div className="mx-auto max-w-lg space-y-5 px-4 py-6 md:px-8 md:py-8">
       <h1 className="text-2xl font-bold text-ink">Settings</h1>
+      {accountsEnabled() && <AccountSection data={data} business={business} />}
       <BusinessSection business={business} />
-      <DataSection data={data} />
-      <DangerSection data={data} business={business} />
+      <DataSection data={data} signedIn={signedIn} />
+      {/* Signed in, these would wipe the account's books: log out instead. */}
+      {!signedIn && <DangerSection data={data} business={business} />}
       <p className="pt-2 text-center text-xs text-ink-muted">BizBuddy V0.1 · Made for Nigerian small businesses</p>
     </div>
   );
@@ -115,9 +120,12 @@ function BusinessSection({ business }: { business: Business }) {
   );
 }
 
-function DataSection({ data }: { data: BizData }) {
+function DataSection({ data, signedIn }: { data: BizData; signedIn: boolean }) {
   return (
-    <Section title="Your records" description="Stored in this browser on this device. Another phone, another browser, or clearing site data won't have them.">
+    <Section
+      title="Your records"
+      description={signedIn ? "Saved on this phone, so they work offline, and backed up to your account." : "Stored in this browser on this device. Another phone, another browser, or clearing site data won't have them."}
+    >
       <dl className="divide-y divide-stone-100">
         <Row label="Sales" value={String(data.sales.length)} />
         <Row label="Payments" value={String(data.payments.length)} />

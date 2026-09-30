@@ -20,6 +20,7 @@ const NETWORK_TIMEOUT_MS = 3000;
 const APP_PAGES = [
   "/",
   "/welcome",
+  "/login",
   "/dashboard",
   "/sales",
   "/sales/new",

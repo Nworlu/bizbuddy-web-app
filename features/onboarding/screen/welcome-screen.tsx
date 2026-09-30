@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { createBusiness, hasRecords, loadDemoData, useBizData } from "@/shared/lib/store";
+import { accountErrorMessage, createAccount, MIN_PASSWORD } from "@/shared/lib/account";
+import { displayPhone, normalizePhone } from "@/shared/lib/phone";
+import { createBusiness, hasRecords, loadDemoData, useBizData, useSyncMeta } from "@/shared/lib/store";
+import { accountsEnabled } from "@/shared/lib/supabase";
+import { showToast } from "@/shared/lib/toast";
 import { BUSINESS_TYPES, type BizData, type BusinessType } from "@/shared/lib/types";
 import { Logo } from "@/shared/ui/logo";
 
@@ -34,6 +38,7 @@ function SampleShop({ data }: { data: BizData }) {
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const shop = data.business;
+  const signedIn = useSyncMeta() !== null;
 
   function open() {
     setOpening(true);
@@ -49,6 +54,22 @@ function SampleShop({ data }: { data: BizData }) {
 
   // After loading, the data briefly holds Ada's Fashion before the redirect lands. Don't show the warning for it.
   if (opening) return <WelcomeLoading label="Opening the sample shop…" />;
+
+  // Signed in: the sample shop would replace the account's books on this phone. Log out first.
+  if (signedIn) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
+        <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm sm:p-8">
+          <div className="mb-6 flex justify-center">
+            <Logo size="lg" />
+          </div>
+          <h1 className="text-xl font-bold text-ink">Log out to try the sample shop</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-muted">This phone is signed in to {shop?.name ?? "your account"}. The sample shop only opens on a phone that isn&apos;t signed in, so it can never mix with your books.</p>
+          <Link href="/dashboard" className="mt-6 block w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white hover:bg-brand-800">Back to my books</Link>
+        </div>
+      </main>
+    );
+  }
 
   const replacing = shop !== null || hasRecords(data);
 
@@ -99,9 +120,15 @@ function countLabel(data: BizData) {
 
 function Onboarding({ data }: { data: BizData }) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("welcome");
+  const meta = useSyncMeta();
+  // Logged in to an account that has no shop yet: skip the welcome, the phone, and the password.
+  const linked = meta !== null;
+  const withAccount = accountsEnabled() && !linked;
+  const [step, setStep] = useState<Step>(linked ? "account" : "welcome");
   const [ownerName, setOwnerName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() => (meta ? displayPhone(meta.phone) : ""));
+  const [password, setPassword] = useState("");
+  const [offlineStart, setOfflineStart] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState<BusinessType>("Fashion");
   const [error, setError] = useState<string | null>(null);
@@ -135,23 +162,19 @@ function Onboarding({ data }: { data: BizData }) {
       setError("Please enter your name.");
       return;
     }
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 10) {
-      setError("Enter a phone number like 08012345678.");
+    if (!normalizePhone(phone)) {
+      setError("Enter a Nigerian phone number, like 0803 123 4567.");
+      return;
+    }
+    if (withAccount && password.length < MIN_PASSWORD) {
+      setError(`Choose a password of at least ${MIN_PASSWORD} characters. You'll use it to log in on another phone.`);
       return;
     }
     setError(null);
     setStep("business");
   }
 
-  function openBooks(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim()) {
-      setError("Please enter your business name.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
+  function saveShop() {
     try {
       createBusiness({ name: name.trim(), ownerName: ownerName.trim(), phone: phone.trim(), type });
       router.replace("/dashboard");
@@ -159,6 +182,37 @@ function Onboarding({ data }: { data: BizData }) {
       setSaving(false);
       setError("This browser couldn't save your shop. Check that site data is allowed, then try again.");
     }
+  }
+
+  async function openBooks(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setError("Please enter your business name.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    if (withAccount) {
+      // The account first: if that phone number already has one, nothing is saved here yet.
+      try {
+        await createAccount({ phone, password });
+      } catch (e) {
+        setSaving(false);
+        const message = accountErrorMessage(e, "create");
+        setError(message);
+        // No internet: they can still start now and back up from Settings later.
+        setOfflineStart(message.startsWith("You need internet"));
+        return;
+      }
+    }
+    saveShop();
+  }
+
+  function startWithoutAccount() {
+    setSaving(true);
+    setError(null);
+    saveShop();
+    showToast("Your books are on this phone. Back them up from Settings when you're online.");
   }
 
   return (
@@ -185,24 +239,37 @@ function Onboarding({ data }: { data: BizData }) {
               {saving ? "Opening the sample shop…" : "Try with demo data"}
             </button>
             {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
+            {accountsEnabled() && (
+              <p className="mt-6 text-sm text-ink-muted">
+                Already have an account? <Link href="/login" className="font-semibold text-brand-700 hover:text-brand-800">Log in</Link>
+              </p>
+            )}
             <p className="mt-6 text-xs text-ink-muted">Made for Nigerian small businesses</p>
           </div>
         )}
 
         {step === "account" && (
           <form onSubmit={continueAccount} className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8" noValidate>
-            <button type="button" onClick={() => { setError(null); setStep("welcome"); }} className="mb-6 text-sm font-medium text-ink-muted hover:text-ink">
-              ← Back
-            </button>
+            {!linked && (
+              <button type="button" onClick={() => { setError(null); setStep("welcome"); }} className="mb-6 text-sm font-medium text-ink-muted hover:text-ink">
+                ← Back
+              </button>
+            )}
             <h1 className="text-xl font-bold text-ink">Tell us about you</h1>
-            <p className="mt-1 text-sm text-ink-muted">We&apos;ll personalise your experience</p>
+            <p className="mt-1 text-sm text-ink-muted">{withAccount ? "Your phone number and password let you open your books on another phone." : "We'll personalise your experience"}</p>
             <div className="mt-6 space-y-4">
               <Field id="owner-name" label="Your name">
                 <input id="owner-name" value={ownerName} onChange={(event) => setOwnerName(event.target.value)} placeholder="e.g. Ada" autoComplete="name" className={inputClass} />
               </Field>
               <Field id="phone" label="Phone number">
-                <input id="phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="e.g. 08012345678" autoComplete="tel" inputMode="tel" className={inputClass} />
+                <input id="phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="e.g. 0803 123 4567" autoComplete="tel" inputMode="tel" readOnly={linked} className={`${inputClass} read-only:bg-stone-50 read-only:text-ink-muted`} />
               </Field>
+              {withAccount && (
+                <Field id="password" label="Password">
+                  <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" aria-describedby="password-hint" className={inputClass} />
+                  <p id="password-hint" className="mt-1 text-xs text-ink-muted">At least {MIN_PASSWORD} characters.</p>
+                </Field>
+              )}
             </div>
             {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
             <button type="submit" className="mt-6 w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-800">
@@ -236,8 +303,13 @@ function Onboarding({ data }: { data: BizData }) {
             </div>
             {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
             <button type="submit" disabled={saving} className="mt-6 w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60">
-              {saving ? "Saving…" : "Open BizBuddy"}
+              {saving ? (withAccount ? "Creating your account…" : "Saving…") : "Open BizBuddy"}
             </button>
+            {offlineStart && (
+              <button type="button" onClick={startWithoutAccount} disabled={saving} className="mt-3 w-full rounded-xl border border-stone-200 bg-white py-3.5 text-sm font-medium text-ink hover:bg-stone-50 disabled:opacity-60">
+                Start on this phone now, back up later
+              </button>
+            )}
           </form>
         )}
       </div>

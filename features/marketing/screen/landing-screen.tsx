@@ -14,7 +14,7 @@ const STEP_TONES = [
 ];
 
 const RIBBON = ["Record the sale", "See who still owes you", "Count what came in", "Cash, transfer, or POS"];
-const RIBBON_TWO = ["Free on this device", "No account yet", "Your records stay here", "Made for Nigerian shops"];
+const RIBBON_TWO = ["Works offline", "Backed up to your account", "Only you see your books", "Made for Nigerian shops"];
 
 export function LandingScreen() {
   const data = useBizData();
@@ -50,9 +50,14 @@ export function LandingScreen() {
               Questions
             </a>
           </nav>
-          <Link href="/welcome" className="hidden text-sm font-semibold text-brand-700 hover:text-brand-800 md:inline">
-            Start your books
-          </Link>
+          <div className="hidden items-center gap-5 md:flex">
+            <Link href="/login" className="text-sm font-medium text-stone-600 hover:text-ink">
+              Log in
+            </Link>
+            <Link href="/welcome" className="text-sm font-semibold text-brand-700 hover:text-brand-800">
+              Start your books
+            </Link>
+          </div>
           <button
             type="button"
             className="relative flex size-10 items-center justify-center rounded-lg md:hidden"
@@ -81,6 +86,9 @@ export function LandingScreen() {
             </a>
             <Link href="/welcome" className="mt-4 text-brand-700">
               Start your books
+            </Link>
+            <Link href="/login" className="py-3 text-stone-600">
+              Log in
             </Link>
           </nav>
         </div>

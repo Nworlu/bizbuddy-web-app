@@ -3,15 +3,16 @@ import { LegalShell } from "@/features/marketing/components/legal-shell";
 
 export const metadata: Metadata = {
   title: "Privacy — BizBuddy",
-  description: "BizBuddy stores your business records in this browser. They are not sent to a server.",
+  description: "How BizBuddy stores your business records: on your phone first, and backed up to your account.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalShell title="Privacy">
-      <p>BizBuddy keeps your business records on this device, in this browser’s local storage. Sales, payments, expenses, and customer names are not uploaded to a BizBuddy server, because there is no account and no server yet.</p>
-      <p>Clearing this site’s data, or using a different browser, removes those records from view. Anyone who can open this browser on this device can see them.</p>
-      <p>This page will change when records move to an account. Until then, treat this browser as the book.</p>
+      <p>BizBuddy keeps your business records on your phone first, in this browser, so it works with no internet. That includes sales, payments, expenses, and customer names and phone numbers.</p>
+      <p>When you create an account, those records are also stored on BizBuddy&apos;s server (hosted by Supabase), so they&apos;re backed up and you can open them on another phone. Only you can see your shop&apos;s records: each account can read and change its own shop, and nothing else. Your account uses your phone number and a password; we don&apos;t send you texts or emails.</p>
+      <p>Without an account, your records stay only in this browser. Clearing this site&apos;s data, or using a different browser, removes them. Logging out removes your records from this phone; your account keeps its copy.</p>
+      <p>Anyone who can open BizBuddy on your phone while you&apos;re logged in can see your records.</p>
     </LegalShell>
   );
 }

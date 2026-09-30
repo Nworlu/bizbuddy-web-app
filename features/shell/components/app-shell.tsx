@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useBizData } from "@/shared/lib/store";
+import { useBizData, useSyncMeta } from "@/shared/lib/store";
+import { startSyncing, useSyncStatus } from "@/shared/lib/sync-runner";
 import { AskIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
 import { Logo } from "@/shared/ui/logo";
 import { OfflineBanner } from "@/shared/ui/offline-banner";
 import { BizContext } from "../hooks/use-biz";
+import { SyncBadge } from "./sync-badge";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
 
@@ -16,7 +18,7 @@ const NAV: NavItem[] = [
   { href: "/sales", label: "Sales", icon: <SalesIcon /> },
   { href: "/expenses", label: "Expenses", icon: <ExpenseIcon /> },
   { href: "/customers", label: "Customers", icon: <CustomersIcon /> },
-  { href: "/ask", label: "Ask BizBuddy", icon: <AskIcon /> },
+  { href: "/ask", label: "Tell BizBuddy", icon: <AskIcon /> },
   { href: "/settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
@@ -32,13 +34,26 @@ function isActive(pathname: string, href: string) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const data = useBizData();
+  const meta = useSyncMeta();
+  const sync = useSyncStatus();
   const router = useRouter();
   const business = data?.business;
+  // Logged in on a new phone: the account's shop arrives with the first sync.
+  const downloading = !business && !!meta?.businessId;
+
+  useEffect(() => startSyncing(), []);
 
   useEffect(() => {
-    if (data && !data.business) router.replace("/welcome");
-  }, [data, router]);
+    if (data && !data.business && !downloading) router.replace("/welcome");
+  }, [data, downloading, router]);
 
+  if (downloading) {
+    return sync.phase === "offline" || sync.phase === "error" ? (
+      <CenterMessage title="Connect to get your books" body="Your books are in your account. Connect to the internet once to download them to this phone. After that, BizBuddy works offline." />
+    ) : (
+      <ShellSkeleton label="Getting your books…" />
+    );
+  }
   if (!data || !business) return <ShellSkeleton />;
 
   return (
@@ -91,6 +106,7 @@ function Sidebar({ businessName }: { businessName: string }) {
       <div className="border-b border-stone-100 px-6 py-5">
         <Logo />
         <p className="mt-1 truncate text-xs text-ink-muted">{businessName}</p>
+        <SyncBadge className="mt-1.5" />
       </div>
       <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
         {NAV.map((item) => {
@@ -126,9 +142,10 @@ function Sidebar({ businessName }: { businessName: string }) {
 function MobileHeader({ businessName }: { businessName: string }) {
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-3">
         <Logo size="sm" />
         <span className="sr-only">, {businessName}</span>
+        <SyncBadge className="truncate" />
       </div>
       <Link href="/settings" aria-label="Settings" className="-mr-2 rounded-lg p-2 text-ink-muted hover:bg-stone-100 hover:text-ink">
         <SettingsIcon />
@@ -172,7 +189,7 @@ function BottomNav() {
           </button>
         </div>
         {tab(NAV[3])}
-        {tab(NAV[4], "Ask")}
+        {tab(NAV[4], "Tell")}
       </nav>
 
       <dialog
@@ -209,10 +226,24 @@ function BottomNav() {
   );
 }
 
-function ShellSkeleton() {
+function CenterMessage({ title, body }: { title: string; body: string }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-6">
+      <div role="status" className="max-w-sm text-center">
+        <div className="flex justify-center">
+          <Logo size="lg" />
+        </div>
+        <h1 className="mt-6 text-xl font-bold text-ink">{title}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">{body}</p>
+      </div>
+    </main>
+  );
+}
+
+function ShellSkeleton({ label = "Loading your business…" }: { label?: string }) {
   return (
     <div role="status" aria-live="polite" className="md:pl-60">
-      <span className="sr-only">Loading your business…</span>
+      <span className="sr-only">{label}</span>
       <div className="fixed inset-y-0 left-0 hidden w-60 border-r border-stone-200 bg-white md:block" />
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-8">
         <div className="skeleton h-8 w-56" />

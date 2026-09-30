@@ -67,8 +67,10 @@ app/
   (app)/expenses/new/page.tsx  Record Expense
   (app)/expenses/edit/page.tsx edit or delete an expense (?id=), same form as Record Expense
   manifest.ts, apple-icon.png  install on the home screen (icons in public/)
-  (app)/ask/page.tsx           Ask BizBuddy chat; answers ?q= from the dashboard (Suspense for useSearchParams)
-  (app)/settings/page.tsx      Settings: business details, record counts, sample shop, delete everything
+  (app)/ask/page.tsx           Tell BizBuddy chat; reads ?q= from the dashboard (Suspense for useSearchParams)
+  api/tell/route.ts            POST: the AI reads a note (signed-in users only)
+  (app)/settings/page.tsx      Settings: account (back up / status / log out), business details, record counts, sample shop, delete everything
+  login/page.tsx               log in with phone + password
 
 features/
   marketing/                   landing screen, FAQ, legal shell
@@ -78,14 +80,21 @@ features/
   sales/                       sales list, Record Sale, sale details, edit sale
   customers/                   customers list, customer page, add and edit customer, CustomerAvatar
   expenses/                    expenses list, Record Expense
-  ask/                         chat screen; lib/answer.ts matches the question and builds the answer
-  settings/                    settings screen
+  ask/                         lib/answer.ts: answers from the books (keyword matcher + answerTopic)
+  tell/                        Tell BizBuddy: screen, draft cards, lib/intents.ts (schema, toDraft), lib/client.ts, server/interpret.ts (OpenAI or Claude call)
+  settings/                    settings screen, account section
+  account/                     login screen
 
 shared/
   ui/                          logo, icons, period-filter (with usePeriodRange), confirm-dialog, delete-payment-button, offline-banner  (used by more than one feature)
   lib/
     types.ts                   data model
-    store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll() + updateSale() + deleteSale() + deletePayment() + updateExpense() + deleteExpense() + updateCustomer() + deleteCustomer()
+    phone.ts                   Nigerian phone numbers -> 234XXXXXXXXXX -> private login name
+    sync.ts                    offline-first sync: outbox, diff, row mapping, merge, syncOnce() (no Supabase code)
+    supabase.ts                Supabase client + the RemoteApi syncOnce() uses; null without env keys
+    account.ts                 createAccount(), logIn(), logOut()
+    sync-runner.ts             runs syncOnce() in the background; useSyncStatus()
+    store.ts                   localStorage store (books + outbox in one entry) + useBizData() + useSyncMeta() + linkShopToAccount() + joinAccount() + unlinkPhone() + syncIO + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll() + updateSale() + deleteSale() + deletePayment() + updateExpense() + deleteExpense() + updateCustomer() + deleteCustomer()
     toast.ts                   showToast(); the shell listens and shows it
     finance.ts                 ALL money calculations (pure functions)
     dates.ts                   local-date helpers, period ranges
@@ -120,6 +129,21 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 18. **Offline.** `<OfflineBanner>` in the app shell shows while `navigator.onLine` is false. It says BizBuddy still works and records are saved on this phone. It must never say anything was synced: there is no server.
 19. **BizBuddy is a PWA and every page is static.** Record pages take the id from the query string (`/sales/view?id=…`, built by `shared/lib/routes.ts`), never the path: a `/sales/[id]` page is built per id on the server, so a sale recorded offline could not be opened. Don't add dynamic `[param]` routes or read `searchParams` in a page's server component; read `?id=` with `useSearchParams` in a client "Route" component inside `<Suspense>`. `npm run build` should list every route as ○ (Static).
 20. **The service worker** is `public/sw.js`, registered by `shared/ui/service-worker.tsx` in production only. On install it saves every page listed in `APP_PAGES` plus the scripts and styles each uses. Pages are network-first with a 3-second timeout, then the saved copy (ignoring the query string); `/_next/static` is cache-first; business records are never cached here. **When you add a page, add it to `APP_PAGES`.** Bump `VERSION` when the caching rules change. To test offline: `npm run build && npx next start -p 3200`, open it, wait for the service worker, then stop the server and keep using the app. The service worker doesn't run under `npm run dev`.
+21. **Accounts and sync.** Supabase, phone number + password. Supabase's own phone login needs a paid SMS code, so `shared/lib/phone.ts` turns 0803 123 4567 into the private login `2348031234567@users.bizbuddy.app`. Nothing is ever emailed; **email confirmation must be off** in Supabase.
+   - The books stay in localStorage first, so everything works offline. Linked to an account, every change is also queued in an outbox. The books and the outbox are saved in **one** localStorage entry, so neither can be saved without the other.
+   - `syncOnce()` sends the outbox, then pulls rows the server changed since the last pull (with a 60-second overlap). A change still in the outbox beats the pulled copy. The server's `updated_at` decides what's new, never the phone's clock. Deletes are sent as `deleted = true`.
+   - Record ids are made on the phone; on the server the key is `(business_id, id)`. Row level security lets each user reach only their own shop (tested on Postgres in `supabase/migrations/0001_bizbuddy.sql`'s rules).
+   - The sample shop is never sent. It can't be opened while signed in, and "Delete everything" is hidden while signed in (log out instead). Logging in refuses to replace books that aren't in an account. Logging out removes the books from the phone and warns if changes haven't reached the account.
+   - The UI never says "Backed up" until the server has confirmed (UX spec §28). Status shows in the sidebar and mobile header (`SyncBadge`).
+   - Without `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`), accounts switch off and the app works on the phone only, as before.
+   - **Setup:** create a Supabase project; run `supabase/migrations/0001_bizbuddy.sql` in its SQL editor; Authentication → Email → turn off "Confirm email"; put the project URL and publishable key in `.env.local` (and in Vercel's environment variables). Never use the service_role key in the app.
+   - Password reset isn't built: "Forgot your password?" says to contact BizBuddy. Resetting means changing it in the Supabase dashboard (Authentication → Users).
+22. **Tell BizBuddy** (`/ask`, `features/tell/`). The owner types a note ("Sold 2 shoes to David for 85k, he paid 50k"); `POST /api/tell` sends it to an AI model and gets back actions: sale, expense, payment, question, or unclear. **Provider:** OpenAI when `OPENAI_API_KEY` is set (`OPENAI_MODEL`, default `gpt-5.4-mini`, low reasoning effort, strict JSON schema); otherwise Claude when `ANTHROPIC_API_KEY` is set (`claude-opus-5-5`, low effort, structured output, refusal fallback). Both get the same instructions and schema (`features/tell/server/interpret.ts`).
+   - **The AI only reads; the app decides.** It never sees the books, only the note, today's date, and customer names (to match "David" to "David Okafor"). It never calculates: a unit price and quantity come back as said, and `toDraft()` works out the total. Questions come back as a topic and `answerTopic()` answers from `finance.ts`.
+   - Every sale, expense, or payment is shown as an editable **draft card**; nothing is saved until Save, which uses the normal store functions and rules.
+   - Needs a signed-in account (the route checks the Supabase access token, so strangers can't spend the AI key) and a connection. Offline or without an account, the screen falls back to the keyword question matcher (`answerQuestion()`).
+   - The API keys are server-only (`.env` locally, Vercel env in production; never `NEXT_PUBLIC_`). The route rate-limits to 30 notes per user per 10 minutes per server instance.
+   - The same reader is meant to power WhatsApp next: a webhook that calls `interpret()` and replies with the draft for a YES.
 
 ## Styling rules
 

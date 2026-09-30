@@ -10,6 +10,8 @@ export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 export type LocalDate = string;
 
 export interface Business {
+  /** The shop's id on the server. Set when the shop is created; older saved shops get one when they start backing up. */
+  id?: string;
   name: string;
   ownerName: string;
   /** Shop owner's phone. Older records saved before this field existed may omit it. */
@@ -64,6 +66,8 @@ export interface Expense {
 
 export interface BizData {
   version: 1;
+  /** The sample shop (Ada's Fashion). Never sent to an account. */
+  demo?: boolean;
   business: Business | null;
   customers: Customer[];
   sales: Sale[];

@@ -9,7 +9,9 @@ import { hasRecords } from "@/shared/lib/store";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ArrowDownIcon, ArrowUpIcon, AskIcon, CheckIcon, ChevronRightIcon, PlusIcon } from "@/shared/ui/icons";
 import { PeriodFilter, usePeriodRange } from "@/shared/ui/period-filter";
-import { SUGGESTED_QUESTIONS } from "../content/suggested-questions";
+import { SUGGESTED_NOTES, SUGGESTED_QUESTIONS } from "../content/suggested-questions";
+import { useSyncMeta } from "@/shared/lib/store";
+import { accountsEnabled } from "@/shared/lib/supabase";
 import { routes } from "@/shared/lib/routes";
 
 export function Dashboard() {
@@ -178,6 +180,8 @@ function ActivityRow({ item }: { item: Activity }) {
 }
 
 function AskCard() {
+  const signedIn = useSyncMeta() !== null;
+  const readsNotes = accountsEnabled() && signedIn;
   const router = useRouter();
   const [question, setQuestion] = useState("");
   const ask = (q: string) => router.push(`/ask?q=${encodeURIComponent(q)}`);
@@ -186,8 +190,9 @@ function AskCard() {
     <section aria-labelledby="ask-title" className="rounded-2xl bg-brand-900 p-5 md:col-span-2">
       <h2 id="ask-title" className="mb-3 flex items-center gap-2 text-base font-semibold text-white">
         <AskIcon className="size-5 text-brand-200" />
-        Ask BizBuddy
+        Tell BizBuddy
       </h2>
+      <p className="-mt-1.5 mb-3 text-xs text-brand-100">{readsNotes ? "Type what happened, or ask about your books." : "Ask about your sales, expenses, and who owes you."}</p>
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -196,22 +201,22 @@ function AskCard() {
         }}
       >
         <label htmlFor="ask-input" className="sr-only">
-          Ask a question about your business
+          {readsNotes ? "Tell BizBuddy what happened" : "Ask a question about your business"}
         </label>
         <input
           id="ask-input"
           type="text"
-          placeholder="Who owes me money?"
+          placeholder={readsNotes ? "Sold 2 shoes to David for 85k…" : "Who owes me money?"}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/40"
         />
         <button type="submit" className="shrink-0 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-brand-800 transition-colors hover:bg-brand-50">
-          Ask
+          {readsNotes ? "Send" : "Ask"}
         </button>
       </form>
       <div className="mt-3 flex flex-wrap gap-2">
-        {SUGGESTED_QUESTIONS.map((q) => (
+        {(readsNotes ? SUGGESTED_NOTES : SUGGESTED_QUESTIONS).map((q) => (
           <button key={q} type="button" onClick={() => ask(q)} className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/90 transition-colors hover:bg-white/20">
             {q}
           </button>

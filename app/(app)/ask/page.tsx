@@ -1,11 +1,11 @@
 import { Suspense } from "react";
-import { AskPage } from "@/features/ask/screen/ask-screen";
+import { TellPage } from "@/features/tell/screen/tell-screen";
 
-// AskPage reads ?q= with useSearchParams, which needs a Suspense boundary for the page to prerender.
+// TellPage reads ?q= (a note from the dashboard) with useSearchParams, which needs a Suspense boundary.
 export default function Page() {
   return (
     <Suspense>
-      <AskPage />
+      <TellPage />
     </Suspense>
   );
 }

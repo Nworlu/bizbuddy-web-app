@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoData } from "@/shared/lib/demo";
 import type { BizData } from "@/shared/lib/types";
-import { answerQuestion } from "./answer";
+import { answerQuestion, answerTopic } from "./answer";
 
 // Tuesday 29 September 2026. The demo shop is dated relative to today.
 const NOW = new Date(2026, 8, 29, 12);
@@ -94,5 +94,24 @@ describe("questions it can't answer", () => {
     const a = ask("What's my profit?");
     expect(a.text).toMatch(/^I can answer questions about your sales/);
     expect(a.suggestions?.length).toBeGreaterThan(0);
+  });
+});
+
+describe("answerTopic: questions Tell BizBuddy already understood", () => {
+  it("gives the same answers as the keyword matcher", () => {
+    expect(answerTopic("owing", null, "month", data, NOW)).toEqual(ask("Who owes me?"));
+    expect(answerTopic("sales", null, "last-month", data, NOW)).toEqual(ask("sales last month"));
+    expect(answerTopic("expenses", null, "month", data, NOW)).toEqual(ask("How much did I spend?"));
+    expect(answerTopic("collected", null, "week", data, NOW)).toEqual(ask("How much have I collected this week?"));
+  });
+
+  it("finds the customer by full or first name", () => {
+    expect(answerTopic("customer_balance", "David Okafor", "month", data, NOW).text).toBe("David Okafor owes you ₦15,000.");
+    expect(answerTopic("customer_balance", "chinedu", "month", data, NOW).text).toBe("Chinedu Eze owes you ₦25,000.");
+    expect(answerTopic("customer_purchases", "David", "month", data, NOW).text).toBe("David Okafor has bought ₦115,000 from you in total, and paid ₦100,000.");
+  });
+
+  it("says when the customer isn't in the books", () => {
+    expect(answerTopic("customer_balance", "Bisi", "month", data, NOW).text).toBe("Bisi isn't one of your customers yet.");
   });
 });

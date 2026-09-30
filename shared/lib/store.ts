@@ -1,37 +1,77 @@
 "use client";
 
-// V0.1 keeps all data in this browser's localStorage. Everything else in the app
-// goes through useBizData() and the actions below, so this file is the only one
-// that changes when we move to a real backend.
+// The books live in this browser's localStorage first, so everything works offline. Everything else
+// in the app goes through useBizData() and the actions below.
+//
+// When the shop is linked to an account, every change is also queued in an outbox (shared/lib/sync.ts)
+// and sent to the server when there is a connection (shared/lib/sync-runner.ts). The books and the
+// outbox are saved together in one localStorage entry, so a change can never be saved without being
+// queued, or queued without being saved.
 
 import { useSyncExternalStore } from "react";
 import { demoData } from "./demo";
 import { allocatePayment, paymentGroup, saleBalance, sharedPaymentsForSale } from "./finance";
+import { diff, opKey, type NewOp, type Op, type SyncIO, type SyncMeta } from "./sync";
 import type { BizData, BusinessType, Customer, Expense, ExpenseCategory, LocalDate, Payment, PaymentMethod } from "./types";
 
 const STORAGE_KEY = "bizbuddy:v1";
 
 const EMPTY: BizData = { version: 1, business: null, customers: [], sales: [], payments: [], expenses: [] };
 
+/** What is saved under STORAGE_KEY: the books, plus the sync state once the shop is linked to an account. */
+type Saved = BizData & { sync?: SyncMeta | null };
+
 let state: BizData | undefined;
+let meta: SyncMeta | null | undefined;
 const listeners = new Set<() => void>();
 
-function read(): BizData {
+function read(): { data: BizData; sync: SyncMeta | null } {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY;
-    const parsed = JSON.parse(raw) as BizData;
-    return parsed?.version === 1 ? parsed : EMPTY;
+    if (!raw) return { data: EMPTY, sync: null };
+    const parsed = JSON.parse(raw) as Saved;
+    if (parsed?.version !== 1) return { data: EMPTY, sync: null };
+    const { sync = null, ...data } = parsed;
+    return { data, sync };
   } catch {
-    return EMPTY;
+    return { data: EMPTY, sync: null };
   }
 }
 
-/** Replaces the whole dataset. Throws if the browser refuses to save, so callers can tell the user. */
-function commit(next: BizData) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  state = next;
+function load() {
+  if (state === undefined || meta === undefined) {
+    const saved = read();
+    state = saved.data;
+    meta = saved.sync;
+  }
+}
+
+/** Saves the books and the sync state in one write. Throws if the browser refuses, and then nothing changes. */
+function save(data: BizData, sync: SyncMeta | null) {
+  const saved: Saved = sync ? { ...data, sync } : data;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  state = data;
+  meta = sync;
   listeners.forEach((l) => l());
+}
+
+/** The outbox with these changes added. A later change to the same record replaces the earlier entry. */
+function queued(sync: SyncMeta, ops: NewOp[]): SyncMeta {
+  if (ops.length === 0) return sync;
+  const outbox = { ...sync.outbox };
+  let seq = sync.seq;
+  for (const op of ops) outbox[opKey(op)] = { ...op, seq: ++seq } as Op;
+  return { ...sync, outbox, seq };
+}
+
+/**
+ * Replaces the books. Throws if the browser refuses to save, so callers can tell the user.
+ * Linked to an account (and not the sample shop): the change is also queued for the server.
+ */
+function commit(next: BizData) {
+  load();
+  const sync = meta && !next.demo ? queued(meta, diff(state!, next)) : meta!;
+  save(next, sync);
 }
 
 function subscribe(listener: () => void) {
@@ -39,7 +79,9 @@ function subscribe(listener: () => void) {
   // Keep other open tabs in sync.
   const onStorage = (e: StorageEvent) => {
     if (e.key === STORAGE_KEY) {
-      state = read();
+      const saved = read();
+      state = saved.data;
+      meta = saved.sync;
       listener();
     }
   };
@@ -51,8 +93,8 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot(): BizData {
-  if (state === undefined) state = read();
-  return state;
+  load();
+  return state!;
 }
 
 function getServerSnapshot(): undefined {
@@ -64,11 +106,94 @@ export function useBizData(): BizData | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-export function createBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType }) {
-  commit({ ...getSnapshot(), business: { ...input, createdAt: new Date().toISOString() } });
+/** The books as they are right now, e.g. just after saving (a component's `data` is from its last render). */
+export function getBizData(): BizData {
+  return getSnapshot();
 }
 
-/** Creates the customer when the name is new, then the sale, then a payment when they paid something. */
+// Sync state ----------------------------------------------------------------------------------------
+
+/** The shop's link to its account, or null when the books live on this phone only. */
+export function getSyncMeta(): SyncMeta | null {
+  load();
+  return meta!;
+}
+
+function getMetaSnapshot(): SyncMeta | null {
+  return getSyncMeta();
+}
+
+/** Like getSyncMeta(), for components. null during server render too. */
+export function useSyncMeta(): SyncMeta | null {
+  return useSyncExternalStore(subscribe, getMetaSnapshot, () => null);
+}
+
+export function subscribeToStore(listener: () => void) {
+  return subscribe(listener);
+}
+
+/**
+ * Links this phone's shop to an account that was just created, and queues every record so the
+ * account gets a full copy. Used after sign-up, including for books kept on the phone before accounts existed.
+ */
+export function linkShopToAccount(input: { userId: string; phone: string }) {
+  load();
+  if (state!.demo) throw new Error("The sample shop can't be linked to an account");
+  let data = state!;
+  if (data.business && !data.business.id) data = { ...data, business: { ...data.business, id: crypto.randomUUID() } };
+  const sync: SyncMeta = { userId: input.userId, phone: input.phone, businessId: data.business?.id ?? null, lastPulledAt: null, outbox: {}, seq: 0 };
+  save(data, queued(sync, diff(EMPTY, data)));
+}
+
+/**
+ * Signs this phone into an existing account: the account's books replace what is here, on the next sync.
+ * Refuses when this phone holds books that aren't in an account, so they're never lost by logging in.
+ */
+export function joinAccount(input: { userId: string; phone: string; businessId: string | null }) {
+  load();
+  if (!state!.demo && (state!.business || hasRecords(state!))) throw new Error("This phone has books that aren't in an account");
+  save(EMPTY, { userId: input.userId, phone: input.phone, businessId: input.businessId, lastPulledAt: null, outbox: {}, seq: 0 });
+}
+
+/** Logs this phone out: the books and the outbox are removed from this phone. The account keeps its copy. */
+export function unlinkPhone() {
+  save(EMPTY, null);
+}
+
+/** How the sync runner reads and changes the books (see SyncIO in shared/lib/sync.ts). */
+export const syncIO: SyncIO = {
+  getData: () => getSnapshot(),
+  getMeta: () => {
+    const sync = getSyncMeta();
+    if (!sync) throw new Error("Not linked to an account");
+    return sync;
+  },
+  acknowledge(sent) {
+    const sync = getSyncMeta();
+    if (!sync || sent.length === 0) return;
+    const outbox = { ...sync.outbox };
+    for (const op of sent) {
+      const key = opKey(op);
+      if (outbox[key]?.seq === op.seq) delete outbox[key];
+    }
+    save(getSnapshot(), { ...sync, outbox });
+  },
+  applyPulled(next, lastPulledAt) {
+    const sync = getSyncMeta();
+    if (!sync) return;
+    // Pulled changes are already on the server: save them without queueing them again.
+    save(next, { ...sync, lastPulledAt });
+  },
+};
+
+export function createBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType }) {
+  load();
+  const business = { id: crypto.randomUUID(), ...input, createdAt: new Date().toISOString() };
+  // An account without a shop yet (e.g. created on another phone) gets this one.
+  if (meta && !meta.businessId) meta = { ...meta, businessId: business.id };
+  commit({ ...state!, business });
+}
+
 /** The customer with this name, or a new one added to the list. Sales find customers by name. */
 function customerNamed(data: BizData, rawName: string): { customer: Customer; customers: Customer[] } {
   const name = tidyName(rawName);
@@ -87,11 +212,13 @@ export function updateBusiness(input: { name: string; ownerName: string; phone: 
   commit({ ...data, business: { ...data.business, name: input.name.trim(), ownerName: input.ownerName.trim(), phone: input.phone.trim(), type: input.type } });
 }
 
-/** Deletes the shop and every record from this browser. Callers must confirm first. */
+/** Deletes the shop and every record from this browser. Callers must confirm first. Signed in, use unlinkPhone() (log out) instead. */
 export function resetAll() {
+  if (getSyncMeta()) throw new Error("Log out instead: this would delete the account's books too");
   commit(EMPTY);
 }
 
+/** Creates the customer when the name is new, then the sale, then a payment when they paid something. */
 export function recordSale(input: { customerName: string; product: string; totalAmount: number; amountPaid: number; method: PaymentMethod; date: LocalDate }) {
   if (!isWholeNaira(input.totalAmount) || input.totalAmount <= 0) throw new Error("Sale amount must be whole naira above 0");
   if (!isWholeNaira(input.amountPaid) || input.amountPaid < 0 || input.amountPaid > input.totalAmount) throw new Error("Amount paid must be whole naira, up to the sale amount");
@@ -241,8 +368,9 @@ export function deleteExpense(expenseId: string) {
   commit({ ...data, expenses: data.expenses.filter((e) => e.id !== expenseId) });
 }
 
-/** Replaces all existing records with the sample business. Callers must confirm first if data exists. */
+/** Replaces all existing records with the sample business. Callers must confirm first if data exists. Not while signed in. */
 export function loadDemoData() {
+  if (getSyncMeta()) throw new Error("Log out before opening the sample shop");
   commit(demoData());
 }
 

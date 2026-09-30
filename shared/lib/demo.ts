@@ -38,6 +38,7 @@ export function demoData(): BizData {
 
   return {
     version: 1,
+    demo: true,
     business: { name: "Ada's Fashion", ownerName: "Ada", phone: "08012345678", type: "Fashion", createdAt: stamp(40) },
     customers,
     sales,

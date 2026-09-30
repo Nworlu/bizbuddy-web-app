@@ -192,7 +192,7 @@ function AskCard() {
         <AskIcon className="size-5 text-brand-200" />
         Tell BizBuddy
       </h2>
-      <p className="-mt-1.5 mb-3 text-xs text-brand-100">{readsNotes ? "Type what happened, or ask about your books." : "Ask about sales, money that came in, and what you spent."}</p>
+      <p className="-mt-1.5 mb-3 text-xs text-brand-100">{readsNotes ? "Type what happened. Each note you save teaches BizBuddy this shop." : "Ask about sales, money that came in, and what you spent."}</p>
       <form
         className="flex gap-2"
         onSubmit={(e) => {

@@ -101,7 +101,7 @@ export function TellPage() {
         </span>
         <div>
           <h1 className="text-2xl font-bold text-ink">Tell BizBuddy</h1>
-          <p className="text-sm text-ink-muted">Type what happened, or ask about your books.</p>
+          <p className="text-sm text-ink-muted">Type what happened. Each note you save teaches this shop.</p>
         </div>
       </div>
 
@@ -114,7 +114,7 @@ export function TellPage() {
       <div role="log" aria-live="polite" aria-label="Notes and replies" className="space-y-4">
         <Bubble from="bizbuddy">
           <p>
-            Hi {business.ownerName}. {readsNotes ? "Tell me what happened in your own words, like “Sold 2 shoes to David for 85k, he paid 50k”. I'll show you what I understood before anything is saved." : "Ask me how much you sold, what came in, or what you spent."}
+            Hi {business.ownerName}. {readsNotes ? "Tell me what happened in your own words, like “Sold 2 shoes to David for 85k, he paid 50k”. Each note you save teaches me this shop. I'll show you what I understood before anything is saved." : "Ask me how much you sold, what came in, or what you spent."}
           </p>
         </Bubble>
         {messages.map((message) => (
@@ -128,7 +128,7 @@ export function TellPage() {
                 {reply.kind === "error" && <p className="text-rose-700">{reply.text}</p>}
                 {reply.kind === "text" && <p>{reply.text}</p>}
                 {reply.kind === "answer" && <AnswerView answer={reply.answer} onAsk={send} />}
-                {reply.kind === "draft" && <DraftCard draft={reply.draft} data={data} />}
+                {reply.kind === "draft" && <DraftCard draft={reply.draft} data={data} note={message.text} />}
               </Bubble>
             ))}
           </div>

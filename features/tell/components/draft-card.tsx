@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { today } from "@/shared/lib/dates";
-import { customerTotals, owedOn } from "@/shared/lib/finance";
+import { customerTotals } from "@/shared/lib/finance";
 import { formatNaira, parseNaira } from "@/shared/lib/format";
 import { routes } from "@/shared/lib/routes";
 import { findCustomerByName, getBizData, recordCustomerPayment, recordExpense, recordSale } from "@/shared/lib/store";
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type BizData, type ExpenseCategory, type PaymentMethod } from "@/shared/lib/types";
+import { checkDraft } from "../lib/drafts";
+import { rememberShop } from "../lib/client";
 import type { Draft, ExpenseDraft, PaymentDraft, SaleDraft } from "../lib/intents";
 
 type Done = { text: string; href?: string };
@@ -16,7 +18,7 @@ type Done = { text: string; href?: string };
  * A draft of what Tell BizBuddy understood. Every field can be corrected; nothing is saved until
  * Save, which goes through the same store rules as the forms (whole naira, no overpaying, and so on).
  */
-export function DraftCard({ draft, data }: { draft: Draft; data: BizData }) {
+export function DraftCard({ draft, data, note }: { draft: Draft; data: BizData; note?: string }) {
   const [done, setDone] = useState<Done | null>(null);
   const [discarded, setDiscarded] = useState(false);
 
@@ -29,17 +31,17 @@ export function DraftCard({ draft, data }: { draft: Draft; data: BizData }) {
       </div>
     );
   }
-  const props = { data, onDone: setDone, onDiscard: () => setDiscarded(true) };
+  const props = { data, note, onDone: setDone, onDiscard: () => setDiscarded(true) };
   if (draft.kind === "sale") return <SaleCard draft={draft} {...props} />;
   if (draft.kind === "expense") return <ExpenseCard draft={draft} {...props} />;
   return <PaymentCard draft={draft} {...props} />;
 }
 
-type CardProps<T> = { draft: T; data: BizData; onDone: (done: Done) => void; onDiscard: () => void };
+type CardProps<T> = { draft: T; data: BizData; note?: string; onDone: (done: Done) => void; onDiscard: () => void };
 
 const SAVE_FAILED = "This browser couldn't save it. Check that site data is allowed, then try again.";
 
-function SaleCard({ draft, data, onDone, onDiscard }: CardProps<SaleDraft>) {
+function SaleCard({ draft, data, note, onDone, onDiscard }: CardProps<SaleDraft>) {
   const [customer, setCustomer] = useState(draft.customer);
   const [product, setProduct] = useState(draft.product);
   const [total, setTotal] = useState(draft.total ? String(draft.total) : "");
@@ -54,15 +56,13 @@ function SaleCard({ draft, data, onDone, onDiscard }: CardProps<SaleDraft>) {
   const owing = totalNum !== null && paidNum !== null && paidNum <= totalNum ? totalNum - paidNum : null;
 
   function save() {
-    if (!customer.trim()) return setError("Who bought it?");
-    if (!product.trim()) return setError("What did you sell?");
-    if (totalNum === null || totalNum <= 0) return setError("How much was the sale? Whole naira, like 85000.");
     if (paidNum === null) return setError("Enter what they paid in whole naira, or leave it empty.");
-    if (paidNum > totalNum) return setError("They can't pay more than the sale amount.");
-    if (!date || date > today()) return setError("The date can't be in the future.");
+    const problem = checkDraft({ kind: "sale", customer, product, total: totalNum && totalNum > 0 ? totalNum : null, paid: paidNum, method, date }, data, today());
+    if (problem || totalNum === null) return setError(problem ?? "How much was the sale?");
     try {
       const result = recordSale({ customerName: customer, product, totalAmount: totalNum, amountPaid: paidNum, method, date });
       const customerId = findCustomerByName(getBizData(), result.customerName)?.id;
+      rememberShop(note ?? "", { kind: "sale", customer: result.customerName, product, total: totalNum, paid: paidNum, method, date });
       onDone({
         text: `Sale recorded. ${result.outstanding > 0 ? `${result.customerName} still owes ${formatNaira(result.outstanding)}.` : `${result.customerName} paid in full.`}`,
         href: customerId ? routes.customer(customerId) : undefined,
@@ -93,7 +93,7 @@ function SaleCard({ draft, data, onDone, onDiscard }: CardProps<SaleDraft>) {
   );
 }
 
-function ExpenseCard({ draft, onDone, onDiscard }: CardProps<ExpenseDraft>) {
+function ExpenseCard({ draft, data, note, onDone, onDiscard }: CardProps<ExpenseDraft>) {
   const [category, setCategory] = useState<ExpenseCategory>(draft.category);
   const [amount, setAmount] = useState(draft.amount ? String(draft.amount) : "");
   const [description, setDescription] = useState(draft.description);
@@ -102,10 +102,11 @@ function ExpenseCard({ draft, onDone, onDiscard }: CardProps<ExpenseDraft>) {
 
   function save() {
     const value = parseNaira(amount);
-    if (value === null || value <= 0) return setError("How much did you spend? Whole naira, like 4000.");
-    if (!date || date > today()) return setError("The date can't be in the future.");
+    const problem = checkDraft({ kind: "expense", category, amount: value && value > 0 ? value : null, description, date }, data, today());
+    if (problem || value === null) return setError(problem ?? "How much did you spend?");
     try {
       recordExpense({ category, amount: value, description, date });
+      rememberShop(note ?? "", { kind: "expense", category, amount: value, description, date });
       onDone({ text: `Expense recorded. ${category}: ${formatNaira(value)}.`, href: "/expenses" });
     } catch {
       setError(SAVE_FAILED);
@@ -124,7 +125,7 @@ function ExpenseCard({ draft, onDone, onDiscard }: CardProps<ExpenseDraft>) {
   );
 }
 
-function PaymentCard({ draft, data, onDone, onDiscard }: CardProps<PaymentDraft>) {
+function PaymentCard({ draft, data, note, onDone, onDiscard }: CardProps<PaymentDraft>) {
   const [customer, setCustomer] = useState(draft.customer);
   const [amount, setAmount] = useState(draft.amount ? String(draft.amount) : "");
   const [method, setMethod] = useState<PaymentMethod>(draft.method);
@@ -136,15 +137,12 @@ function PaymentCard({ draft, data, onDone, onDiscard }: CardProps<PaymentDraft>
 
   function save() {
     const value = parseNaira(amount);
-    if (!match) return setError(customer.trim() ? `${customer.trim()} isn't one of your customers. Check the name.` : "Who paid?");
-    if (value === null || value <= 0) return setError("How much did they pay? Whole naira, like 20000.");
-    if (!date || date > today()) return setError("The date can't be in the future.");
-    const owed = owedOn(match.id, data, date);
-    if (owed === 0) return setError(`${match.name} didn't owe anything then.`);
-    if (value > owed) return setError(`${match.name} owed ${formatNaira(owed)}. The payment can't be more than that.`);
+    const problem = checkDraft({ kind: "payment", customer, amount: value && value > 0 ? value : null, method, date }, data, today());
+    if (problem || !match || value === null) return setError(problem ?? "Who paid?");
     try {
       recordCustomerPayment({ customerId: match.id, amount: value, method, date });
       const left = owes - value;
+      rememberShop(note ?? "", { kind: "payment", customer: match.name, amount: value, method, date });
       onDone({ text: `Payment recorded. ${left > 0 ? `${match.name} still owes ${formatNaira(left)}.` : `${match.name} is paid up.`}`, href: routes.customer(match.id) });
     } catch {
       setError(SAVE_FAILED);

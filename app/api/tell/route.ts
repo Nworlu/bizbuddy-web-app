@@ -2,11 +2,13 @@
 // and returns structured actions.
 //
 // Only for signed-in accounts (the Supabase access token goes in the Authorization header), so the
-// AI provider's API key can't be spent by strangers. The note is read, never stored. Nothing is recorded here:
+// AI provider's API key can't be spent by strangers. The note itself is not stored here. Notes the
+// owner later confirms are remembered for their shop (app/api/tell/learn). Nothing is recorded here:
 // the app shows the actions as drafts and saves only what the owner confirms.
 
 import { createClient } from "@supabase/supabase-js";
 import { interpret, TellBusyError, TellRefusedError, tellProvider } from "@/features/tell/server/interpret";
+import { memoryPromptFor } from "@/features/tell/server/memory";
 
 const MAX_MESSAGE = 600;
 const MAX_CUSTOMERS = 300;
@@ -41,6 +43,7 @@ function withinLimit(userId: string): boolean {
 export async function POST(request: Request) {
   if (!tellProvider()) return reply(503, "Tell BizBuddy isn't set up on this server yet.");
 
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const userId = await signedInUser(request);
   if (!userId) return reply(401, "Log in to use Tell BizBuddy.");
   if (!withinLimit(userId)) return reply(429, "That's a lot of notes in a short time. Wait a few minutes, then try again.");
@@ -62,7 +65,8 @@ export async function POST(request: Request) {
   if (!today) return reply(400, "Bad request.");
 
   try {
-    const result = await interpret({ message, today, weekday, customers });
+    const memory = await memoryPromptFor(token);
+    const result = await interpret({ message, today, weekday, customers, memory });
     return Response.json(result);
   } catch (error) {
     if (error instanceof TellRefusedError) return reply(422, "BizBuddy couldn't read that note. Try saying it another way.");

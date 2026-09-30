@@ -18,6 +18,10 @@ export const FAQ: FaqItem[] = [
     a: "You record another payment against that sale. The balance updates from the payments.",
   },
   {
+    q: "Does it learn my shop?",
+    a: "Yes, once you have an account. Each note you confirm is remembered for your shop only, so the next note is read the way you write. Another shop never sees it. The money is still added up by the app, not guessed.",
+  },
+  {
     q: "Which shops is this for?",
     a: "Fashion, shoes, beauty, phones, food, and other small retail. Cash, bank transfer, and POS.",
   },

@@ -14,7 +14,7 @@ const STEP_TONES = [
 ];
 
 const RIBBON = ["Record the sale", "Count what came in", "Write what you spent", "See the day"];
-const RIBBON_TWO = ["Works offline", "Backed up to your account", "Only you see your books", "Made for Nigerian shops"];
+const RIBBON_TWO = ["Works offline", "Learns your shop", "Backed up to your account", "Only you see your books"];
 
 export function LandingScreen() {
   const data = useBizData();
@@ -45,6 +45,9 @@ export function LandingScreen() {
           <nav aria-label="Page" className="hidden items-center gap-8 md:flex">
             <a href="#how" className="text-sm text-stone-600 hover:text-ink">
               How it works
+            </a>
+            <a href="#learns" className="text-sm text-stone-600 hover:text-ink">
+              Your shop
             </a>
             <a href="#questions" className="text-sm text-stone-600 hover:text-ink">
               Questions
@@ -80,6 +83,9 @@ export function LandingScreen() {
           <nav aria-label="Page" className="flex flex-col px-6 py-8 text-2xl font-semibold">
             <a href="#how" onClick={() => setMenuOpen(false)} className="py-3">
               How it works
+            </a>
+            <a href="#learns" onClick={() => setMenuOpen(false)} className="py-3">
+              Your shop
             </a>
             <a href="#questions" onClick={() => setMenuOpen(false)} className="py-3">
               Questions
@@ -190,6 +196,37 @@ export function LandingScreen() {
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section id="learns" className="px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto max-w-5xl">
+            <p className="flex items-center gap-2 text-sm text-stone-600">
+              <Spark />
+              Your shop
+            </p>
+            <h2 className="mt-4 max-w-xl text-balance text-4xl font-bold tracking-tight md:text-6xl">
+              It learns <span className="text-stone-500">how you run it.</span>
+            </h2>
+            <p className="mt-4 max-w-xl text-base leading-7 text-stone-600">
+              Tell BizBuddy the day in your own words. Each note you confirm teaches it this shop: what you sell, who you mean, and how you write “85k”. The next note is easier. Another owner’s shop never sees it.
+            </p>
+            <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+              <article className="flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-white p-6 text-stone-600 shadow-xl shadow-stone-300/50 md:min-h-72 md:rotate-[-1.5deg] md:p-7">
+                <p className="text-sm">The first note</p>
+                <div>
+                  <p className="text-2xl font-semibold text-ink">“Sold 2 sneakers to David for 85k, he paid 50k.”</p>
+                  <p className="mt-3 text-base leading-6">BizBuddy shows the sale and waits. You fix anything it missed, then save. That save is the lesson.</p>
+                </div>
+              </article>
+              <article className="flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-brand-800 p-6 text-brand-100 shadow-xl shadow-brand-900/20 md:min-h-72 md:translate-y-6 md:rotate-[1.5deg] md:p-7">
+                <p className="text-sm">After a few days</p>
+                <div>
+                  <p className="text-2xl font-semibold text-white">“David, sneakers again, transfer.”</p>
+                  <p className="mt-3 text-base leading-6 text-brand-100">It already knows this shop sells sneakers, that David buys them, and that you write money as 85k.</p>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 

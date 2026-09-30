@@ -1,6 +1,6 @@
 # BizBuddy: Handoff
 
-_Last updated: 29 Sep 2026_
+_Last updated: 30 Sep 2026_
 
 ## Where things stand
 
@@ -68,7 +68,8 @@ app/
   (app)/expenses/edit/page.tsx edit or delete an expense (?id=), same form as Record Expense
   manifest.ts, apple-icon.png  install on the home screen (icons in public/)
   (app)/ask/page.tsx           Tell BizBuddy chat; reads ?q= from the dashboard (Suspense for useSearchParams)
-  api/tell/route.ts            POST: the AI reads a note (signed-in users only)
+  api/tell/route.ts            POST: the AI reads a note (signed-in users only), with what this shop has already confirmed
+  api/tell/learn/route.ts      POST: remembers a note the owner confirmed, for that shop only
   (app)/settings/page.tsx      Settings: account (back up / status / log out), business details, record counts, sample shop, delete everything
   login/page.tsx               log in with phone + password
 
@@ -81,7 +82,7 @@ features/
   customers/                   customers list, customer page, add and edit customer, CustomerAvatar
   expenses/                    expenses list, Record Expense
   ask/                         lib/answer.ts: answers from the books (keyword matcher + answerTopic)
-  tell/                        Tell BizBuddy: screen, draft cards, lib/intents.ts (schema, toDraft), lib/client.ts, server/interpret.ts (OpenAI or Claude call)
+  tell/                        Tell BizBuddy: screen, draft cards, lib/intents.ts (schema, toDraft), lib/memory.ts (what this shop has confirmed), lib/client.ts, server/interpret.ts (OpenAI), server/memory.ts
   settings/                    settings screen, account section
   account/                     login screen
 
@@ -145,6 +146,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
    - The API keys are server-only (`.env` locally, Vercel env in production; never `NEXT_PUBLIC_`). The route rate-limits to 30 notes per user per 10 minutes per server instance.
    - The same reader is meant to power WhatsApp next: a webhook that calls `interpret()` and replies with the draft for a YES.
    - **Who the chat is with.** WhatsApp is for the shop owner running the business, not for buyers. The sender's number must be the account (`business_for_login`). The reply uses that owner's name and shop. A customer saved in the books is not given a chat that tells them what they owe. If the owner was just recording a sale or payment for one customer, the next note can stay on that customer until they name someone else (`whatsapp_focus`). `features/whatsapp/lib/person.ts` does that; `whoIsChatting()` loads it.
+   - **It learns this shop.** Each note the owner confirms (after any corrections on the draft) is remembered for that shop only (`shop_memory`, `supabase/migrations/0003_shop_memory.sql`). The next note is sent with those lessons (`features/tell/lib/memory.ts`). The eight newest notes are kept, plus the products they sell and whether they write “85k”. Another shop never sees it. The model still does not do the money maths. Run `0003_shop_memory.sql` in the Supabase SQL editor before this works on a real account. Without the table, reading a note still works; the lesson is just not saved.
 
 ## Styling rules
 

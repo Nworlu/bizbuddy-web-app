@@ -4,9 +4,9 @@ import { today } from "@/shared/lib/dates";
 import { getSyncMeta } from "@/shared/lib/store";
 import { accountsEnabled, supabase } from "@/shared/lib/supabase";
 import type { BizData } from "@/shared/lib/types";
-import { parseInterpretation, type Interpretation } from "./intents";
+import { parseInterpretation, type Draft, type Interpretation } from "./intents";
 
-/** Tell BizBuddy reads notes with Claude on the server, so it needs an account and a connection. */
+/** Tell BizBuddy reads notes on the server, so it needs an account and a connection. */
 export function canTell(): boolean {
   return accountsEnabled() && getSyncMeta() !== null && (typeof navigator === "undefined" || navigator.onLine);
 }
@@ -35,4 +35,18 @@ export async function tellBizBuddy(message: string, data: BizData): Promise<Inte
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new TellError(body?.error ?? "BizBuddy couldn't read that just now. Try again.");
   return parseInterpretation(JSON.stringify(body));
+}
+
+/** After the owner saves a draft, remember the note for this shop. Failure leaves the record saved. */
+export function rememberShop(note: string, draft: Draft): void {
+  if (!canTell()) return;
+  void (async () => {
+    const session = (await supabase()?.auth.getSession())?.data.session;
+    if (!session) return;
+    await fetch("/api/tell/learn", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ note, draft }),
+    }).catch(() => undefined);
+  })();
 }

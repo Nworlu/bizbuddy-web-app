@@ -52,7 +52,7 @@ Routes in `app/` are thin. A route imports a screen; the screen owns its UI.
 app/
   page.tsx                     public landing page
   welcome/page.tsx             onboarding (welcome, name + phone, business); demo via ?demo=1
-  privacy/page.tsx, terms/page.tsx
+  privacy/page.tsx, terms/page.tsx  privacy policy and terms; phone-first books, the account backup, Tell BizBuddy, and WhatsApp
   (app)/layout.tsx             AppShell
   (app)/dashboard/page.tsx     dashboard  (not / — that URL is the landing page)
   (app)/sales/page.tsx         sales list

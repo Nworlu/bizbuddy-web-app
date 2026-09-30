@@ -68,7 +68,8 @@ app/
   (app)/expenses/edit/page.tsx edit or delete an expense (?id=), same form as Record Expense
   manifest.ts, apple-icon.png  install on the home screen (icons in public/)
   (app)/ask/page.tsx           Tell BizBuddy chat; reads ?q= from the dashboard (Suspense for useSearchParams)
-  api/tell/route.ts            POST: the AI reads a note (signed-in users only), with what this shop has already confirmed
+  api/tell/route.ts            POST: the AI reads a note (signed-in users only)
+  api/whatsapp/route.ts        WhatsApp Cloud API webhook: GET verify, POST signed messages, with what this shop has already confirmed
   api/tell/learn/route.ts      POST: remembers a note the owner confirmed, for that shop only
   (app)/settings/page.tsx      Settings: account (back up / status / log out), business details, record counts, sample shop, delete everything
   login/page.tsx               log in with phone + password
@@ -147,6 +148,12 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
    - The same reader is meant to power WhatsApp next: a webhook that calls `interpret()` and replies with the draft for a YES.
    - **Who the chat is with.** WhatsApp is for the shop owner running the business, not for buyers. The sender's number must be the account (`business_for_login`). The reply uses that owner's name and shop. A customer saved in the books is not given a chat that tells them what they owe. If the owner was just recording a sale or payment for one customer, the next note can stay on that customer until they name someone else (`whatsapp_focus`). `features/whatsapp/lib/person.ts` does that; `whoIsChatting()` loads it.
    - **It learns this shop.** Each note the owner confirms (after any corrections on the draft) is remembered for that shop only (`shop_memory`, `supabase/migrations/0003_shop_memory.sql`). The next note is sent with those lessons (`features/tell/lib/memory.ts`). The eight newest notes are kept, plus the products they sell and whether they write “85k”. Another shop never sees it. The model still does not do the money maths. Run `0003_shop_memory.sql` in the Supabase SQL editor before this works on a real account. Without the table, reading a note still works; the lesson is just not saved.
+23. **WhatsApp** (`app/api/whatsapp/route.ts`, `features/whatsapp/`). The shop owner messages BizBuddy's WhatsApp number from the phone number of their account; `business_for_login` (migration 0002) finds their shop from the account's login, never from a number typed in the app. Other numbers are told how to sign up; customers are not chatted with.
+   - Flow (`features/whatsapp/lib/conversation.ts`): the same reader as Tell BizBuddy, plus who the chat is with and shop memory → a reply with what was understood (`describeDraft`, the app's own sums) and **Save** / **Cancel** buttons, or typed yes / no. Save re-checks against the books as they are then (`checkDraft`) and records with the shared rules (`shared/lib/actions.ts`, `applyDraft`); phones get it on their next sync. Questions are answered from the books. Voice notes and images get "I can only read text for now".
+   - The owner's chat stays on the last customer they named (`whatsapp_focus`), so "he paid 20k" goes to that person. Confirmed notes teach shop memory (`shop_memory`, migration 0003); the note is kept with the waiting drafts (migration 0004).
+   - Safety: only calls signed with `WHATSAPP_APP_SECRET` are accepted; each message id is handled once (`whatsapp_messages`); the server writes with `SUPABASE_SECRET_KEY` and only ever to the sender's shop. Meta gets its 200 at once and the reply goes out just after (`after()`, `maxDuration` 60).
+   - Settings (server only): `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`. Register `https://<app>/api/whatsapp` in Meta (WhatsApp → Configuration) with the verify token, subscribed to `messages`.
+   - Meta's free test number only messages up to 5 verified numbers, and its temporary token lasts 24 hours; production needs a permanent System User token and the business's own number.
 
 ## Styling rules
 

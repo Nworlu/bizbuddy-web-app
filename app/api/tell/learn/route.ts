@@ -11,7 +11,7 @@ async function signedIn(request: Request): Promise<string | null> {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!token || !url || !key) return null;
   const { data, error } = await createClient(url, key, { auth: { persistSession: false } }).auth.getUser(token);
-  return error ? null : token;
+  return error || !data.user ? null : token;
 }
 
 export async function POST(request: Request) {

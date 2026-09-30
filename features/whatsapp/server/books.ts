@@ -9,6 +9,7 @@ import { loginEmail } from "@/shared/lib/phone";
 import { businessFromRemote, diff, recordFromRemote, recordToRemote, TABLES, type RemoteBusiness, type RemoteRow } from "@/shared/lib/sync";
 import type { BizData } from "@/shared/lib/types";
 import type { Draft } from "@/features/tell/lib/intents";
+import { EMPTY_MEMORY, parseMemory, type ShopMemory } from "@/features/tell/lib/memory";
 
 let client: SupabaseClient | undefined;
 function db(): SupabaseClient {
@@ -110,14 +111,18 @@ export async function saveChanges(businessId: string, before: BizData, after: Bi
   }
 }
 
-export async function getPending(phone: string): Promise<{ businessId: string; drafts: Draft[] } | null> {
-  const { data, error } = await db().from("whatsapp_pending").select("business_id, drafts").eq("phone", phone).maybeSingle();
+export type Pending = { businessId: string; note: string; drafts: Draft[] };
+
+export async function getPending(phone: string): Promise<Pending | null> {
+  const { data, error } = await db().from("whatsapp_pending").select("business_id, note, drafts").eq("phone", phone).maybeSingle();
   if (error) throw error;
-  return data ? { businessId: data.business_id as string, drafts: data.drafts as Draft[] } : null;
+  return data ? { businessId: data.business_id as string, note: (data.note as string) ?? "", drafts: data.drafts as Draft[] } : null;
 }
 
-export async function setPending(phone: string, businessId: string, drafts: Draft[]): Promise<void> {
-  const { error } = await db().from("whatsapp_pending").upsert({ phone, business_id: businessId, drafts, created_at: new Date().toISOString() });
+export async function setPending(phone: string, pending: Pending): Promise<void> {
+  const { error } = await db()
+    .from("whatsapp_pending")
+    .upsert({ phone, business_id: pending.businessId, note: pending.note, drafts: pending.drafts, created_at: new Date().toISOString() });
   if (error) throw error;
 }
 
@@ -132,4 +137,16 @@ export async function markSeen(messageId: string): Promise<boolean> {
   if (!error) return true;
   if (error.code === "23505") return false; // unique_violation: seen before
   throw error;
+}
+
+/** What this shop's owner has confirmed before (supabase/migrations/0003). Empty until their first save. */
+export async function getMemory(businessId: string): Promise<ShopMemory> {
+  const { data, error } = await db().from("shop_memory").select("memory").eq("business_id", businessId).maybeSingle();
+  if (error) throw error;
+  return data ? parseMemory(data.memory) : EMPTY_MEMORY;
+}
+
+export async function saveMemory(businessId: string, memory: ShopMemory): Promise<void> {
+  const { error } = await db().from("shop_memory").upsert({ business_id: businessId, memory, updated_at: new Date().toISOString() });
+  if (error) throw error;
 }

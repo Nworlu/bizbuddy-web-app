@@ -33,7 +33,14 @@ export class TellRefusedError extends Error {}
 /** The provider is rate limiting or overloaded: try again shortly. */
 export class TellBusyError extends Error {}
 
-export type TellInput = { message: string; today: string; weekday: string; customers: string[] };
+export type TellInput = {
+  message: string;
+  today: string;
+  weekday: string;
+  customers: string[];
+  /** Who this WhatsApp chat is with. Omitted on the website. */
+  chatWith?: string | null;
+};
 
 export function tellProvider(): "openai" | "claude" | null {
   if (process.env.OPENAI_API_KEY) return "openai";
@@ -45,6 +52,7 @@ function contextFor(input: TellInput): string {
   return [
     `Today is ${input.weekday}, ${input.today}.`,
     input.customers.length > 0 ? `Existing customers: ${input.customers.join("; ")}.` : "The shop has no customers yet.",
+    ...(input.chatWith ? [input.chatWith] : []),
     "",
     "The shop owner's note:",
     "<note>",

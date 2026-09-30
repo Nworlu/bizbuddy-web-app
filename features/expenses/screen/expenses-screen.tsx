@@ -2,20 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { PERIODS, periodRange, type Period } from "@/shared/lib/dates";
 import { expenseSummary } from "@/shared/lib/finance";
 import { formatDate, formatNaira } from "@/shared/lib/format";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { PlusIcon, SearchIcon } from "@/shared/ui/icons";
-import { PeriodFilter } from "@/shared/ui/period-filter";
+import { PeriodFilter, usePeriodRange } from "@/shared/ui/period-filter";
 
 export function ExpensesPage() {
   const { data } = useBiz();
-  const [period, setPeriod] = useState<Period>("month");
+  const period = usePeriodRange();
   const [query, setQuery] = useState("");
 
-  const { expenses, total, byCategory } = expenseSummary(data, periodRange(period));
-  const periodLabel = PERIODS.find((p) => p.key === period)!.label.toLowerCase();
+  const { expenses, total, byCategory } = expenseSummary(data, period.range);
   const needle = query.trim().toLowerCase();
   const visible = needle ? expenses.filter((e) => e.category.toLowerCase().includes(needle) || e.description.toLowerCase().includes(needle)) : expenses;
 
@@ -39,10 +37,10 @@ export function ExpensesPage() {
         </div>
       ) : (
         <>
-          <PeriodFilter value={period} onChange={setPeriod} className="mb-5" />
+          <PeriodFilter state={period} className="mb-5" />
 
           <section aria-label="Spending summary" className="mb-5 rounded-2xl border border-stone-200 bg-white p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Spent {periodLabel}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Spent {period.phrase}</p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-rose-700">{formatNaira(total)}</p>
             <p className="mt-0.5 text-xs text-ink-muted">{expenses.length} expense{expenses.length === 1 ? "" : "s"}</p>
             {byCategory.length > 0 && (
@@ -76,7 +74,7 @@ export function ExpensesPage() {
           </div>
 
           {expenses.length === 0 ? (
-            <p className="py-12 text-center text-sm text-ink-muted">No expenses recorded {periodLabel}.</p>
+            <p className="py-12 text-center text-sm text-ink-muted">No expenses recorded {period.phrase}.</p>
           ) : visible.length === 0 ? (
             <p className="py-12 text-center text-sm text-ink-muted">No expenses match that search.</p>
           ) : (

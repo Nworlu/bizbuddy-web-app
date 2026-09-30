@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatNaira, greeting, parseNaira } from "./format";
+import { formatDate, formatNaira, greeting, parseNaira, periodPhrase } from "./format";
 
 describe("parseNaira", () => {
   it.each([
@@ -37,5 +37,17 @@ describe("greeting", () => {
     expect(greeting(new Date(2026, 8, 29, 9))).toBe("Good morning");
     expect(greeting(new Date(2026, 8, 29, 14))).toBe("Good afternoon");
     expect(greeting(new Date(2026, 8, 29, 19))).toBe("Good evening");
+  });
+});
+
+describe("periodPhrase", () => {
+  it("names a preset period", () => {
+    expect(periodPhrase("month", { start: "2026-09-01", end: "2026-09-29" })).toBe("this month");
+    expect(periodPhrase("last-month", { start: "2026-08-01", end: "2026-08-31" })).toBe("last month");
+  });
+
+  it("gives the dates of a custom range", () => {
+    expect(periodPhrase("custom", { start: "2026-09-01", end: "2026-09-15" })).toMatch(/^from 1 Sep.* 2026 to 15 Sep.* 2026$/);
+    expect(periodPhrase("custom", { start: "2026-09-03", end: "2026-09-03" })).toMatch(/^on 3 Sep.* 2026$/);
   });
 });

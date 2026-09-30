@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysAgo, inRange, periodRange, toLocalDate } from "./dates";
+import { customRange, daysAgo, inRange, periodRange, toLocalDate } from "./dates";
 
 // Tuesday 29 September 2026, midday local time.
 const TUESDAY = new Date(2026, 8, 29, 12);
@@ -51,5 +51,12 @@ describe("inRange", () => {
     expect(inRange("2026-09-29", range)).toBe(true);
     expect(inRange("2026-08-31", range)).toBe(false);
     expect(inRange("2026-09-30", range)).toBe(false);
+  });
+});
+
+describe("customRange", () => {
+  it("keeps the dates in order, whichever was picked first", () => {
+    expect(customRange("2026-09-01", "2026-09-15")).toEqual({ start: "2026-09-01", end: "2026-09-15" });
+    expect(customRange("2026-09-15", "2026-09-01")).toEqual({ start: "2026-09-01", end: "2026-09-15" });
   });
 });

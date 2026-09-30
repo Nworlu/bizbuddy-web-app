@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useBizData } from "@/shared/lib/store";
 import { AskIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
 import { Logo } from "@/shared/ui/logo";
+import { OfflineBanner } from "@/shared/ui/offline-banner";
 import { BizContext } from "../hooks/use-biz";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
@@ -48,6 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar businessName={business.name} />
       <MobileHeader businessName={business.name} />
       <main id="main" className="pb-28 md:pb-10 md:pl-60">
+        <OfflineBanner />
         {children}
       </main>
       <ToastHost />

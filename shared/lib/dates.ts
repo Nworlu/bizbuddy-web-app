@@ -54,3 +54,11 @@ export function periodRange(period: Period, now = new Date()): DateRange {
 export function inRange(date: LocalDate, range: DateRange): boolean {
   return date >= range.start && date <= range.end;
 }
+
+/** A preset period, or dates the user picked. */
+export type PeriodChoice = Period | "custom";
+
+/** The range between two picked dates, whichever order they were picked in. */
+export function customRange(a: LocalDate, b: LocalDate): DateRange {
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
+}

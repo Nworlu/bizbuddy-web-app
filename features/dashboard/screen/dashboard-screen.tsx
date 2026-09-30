@@ -3,25 +3,23 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { PERIODS, periodRange, type Period } from "@/shared/lib/dates";
 import { customersOwing, periodSummary, recentActivity, type Activity } from "@/shared/lib/finance";
 import { formatDate, formatNaira, greeting } from "@/shared/lib/format";
 import { hasRecords } from "@/shared/lib/store";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ArrowDownIcon, ArrowUpIcon, AskIcon, CheckIcon, ChevronRightIcon, PlusIcon } from "@/shared/ui/icons";
-import { PeriodFilter } from "@/shared/ui/period-filter";
+import { PeriodFilter, usePeriodRange } from "@/shared/ui/period-filter";
 import { SUGGESTED_QUESTIONS } from "../content/suggested-questions";
 
 export function Dashboard() {
   const { data, business } = useBiz();
-  const [period, setPeriod] = useState<Period>("month");
+  const period = usePeriodRange();
 
-  const range = periodRange(period);
+  const { range } = period;
   const summary = periodSummary(data, range);
   const owing = customersOwing(data);
   const totalOwing = owing.reduce((s, x) => s + x.balance, 0);
   const activity = recentActivity(data, range);
-  const periodLabel = PERIODS.find((p) => p.key === period)!.label.toLowerCase();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
@@ -40,7 +38,7 @@ export function Dashboard() {
         </Link>
       </div>
 
-      <PeriodFilter value={period} onChange={setPeriod} className="mb-6" />
+      <PeriodFilter state={period} className="mb-6" />
 
       <section aria-label="Summary" className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard href="/sales" label="Sales" value={summary.sales} accent="border-t-brand-500" tone="text-brand-700" />
@@ -90,7 +88,7 @@ export function Dashboard() {
           <section aria-labelledby="activity-title" className="rounded-2xl border border-stone-200 bg-white p-5">
             <SectionHeader id="activity-title" title="Recent Activity" href="/sales" />
             {activity.length === 0 ? (
-              <p className="py-6 text-center text-sm text-ink-muted">Nothing recorded {periodLabel}.</p>
+              <p className="py-6 text-center text-sm text-ink-muted">Nothing recorded {period.phrase}.</p>
             ) : (
               <ul className="space-y-3">
                 {activity.map((item) => (

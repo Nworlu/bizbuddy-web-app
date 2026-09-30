@@ -1,3 +1,5 @@
+import { PERIODS, type DateRange, type PeriodChoice } from "./dates";
+
 const naira = new Intl.NumberFormat("en-NG", {
   style: "currency",
   currency: "NGN",
@@ -32,4 +34,11 @@ export function greeting(now = new Date()): string {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
+}
+
+/** How to finish a sentence like "Spent …" or "Nothing recorded …": "this month", "on 3 Sept 2026", "from 1 Sept 2026 to 15 Sept 2026". */
+export function periodPhrase(choice: PeriodChoice, range: DateRange): string {
+  if (choice !== "custom") return PERIODS.find((p) => p.key === choice)!.label.toLowerCase();
+  if (range.start === range.end) return `on ${formatDate(range.start)}`;
+  return `from ${formatDate(range.start)} to ${formatDate(range.end)}`;
 }

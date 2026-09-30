@@ -4,9 +4,9 @@ _Last updated: 29 Sep 2026_
 
 ## Where things stand
 
-The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, Settings (edit business details, record counts, sample shop, delete everything), editing or deleting sales, payments, expenses, and customers, and the polish from the review. Every V0.1 screen exists.
+The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, onboarding, the app shell, the dashboard, Record Sale, the Sales list, Sale Details with Record Payment, Customers (list, customer page with Record Payment, Add Customer), Expenses (list with period filter and category totals, Record Expense), Ask BizBuddy, Settings (edit business details, record counts, sample shop, delete everything), editing or deleting sales, payments, expenses, and customers, the polish from the review, a Custom date range, and an offline banner. Every V0.1 screen and spec item is built.
 
-The next task is **the Custom date range and an offline banner**, then accounts. See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
+The next task is **putting it in front of real shop owners**, and deciding on **accounts and a server**. See Next steps. The build order comes from `BizBuddy_Web_App.md` §50. Onboarding was built earlier than that list because the landing page needed a setup flow.
 
 GitHub: https://github.com/Nworlu/bizbuddy-web-app (`origin`, branch `main`). The app commit for the landing page, setup, and Record Sale is `afec612`. This file is the handoff. A copy is committed at `bizbuddy-web-app/HANDOFF.md` so GitHub stays current. After each feature, update this file, copy it into the app, and commit the app code.
 
@@ -81,7 +81,7 @@ features/
   settings/                    settings screen
 
 shared/
-  ui/                          logo, icons, period-filter, confirm-dialog, delete-payment-button  (used by more than one feature)
+  ui/                          logo, icons, period-filter (with usePeriodRange), confirm-dialog, delete-payment-button, offline-banner  (used by more than one feature)
   lib/
     types.ts                   data model
     store.ts                   localStorage store + useBizData() + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll() + updateSale() + deleteSale() + deletePayment() + updateExpense() + deleteExpense() + updateCustomer() + deleteCustomer()
@@ -115,6 +115,8 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 14. **Customer names are unique, ignoring case and extra spaces anywhere in the name** (`findCustomerByName()`). New names are saved with spaces tidied ("Sarah  Ibrahim" becomes "Sarah Ibrahim"). Record Sale reuses the existing customer; Add Customer refuses a duplicate and links to the existing one.
 15. **Ask BizBuddy is keyword matching, not AI** (`features/ask/lib/answer.ts`). It answers the V0.1 questions in `BIZBUDDY_PLAN.md` §13: who owes me, how much a named customer owes or bought, sales, expenses, and money collected, for today, this week, this month (the default), or last month. Every number comes from `finance.ts`. Anything else gets suggested questions. The chat is not saved.
 16. **Fixing mistakes keeps the money honest.** Every delete asks first (`shared/ui/confirm-dialog.tsx`). Deleting a sale deletes its payments. A sale that received part of a split payment can't be deleted or moved to another customer until that payment is deleted, so received money never disappears silently. A sale's total can't drop below what's been paid, and its date can't be after a payment on it. A split payment is deleted whole. Payments can't be edited: delete and record again. A customer with sales can't be deleted: delete or move their sales first.
+17. **Periods.** The dashboard and Expenses share `usePeriodRange()` and `<PeriodFilter>` (`shared/ui/period-filter.tsx`): Today, This Week, This Month (the default), Last Month, and Custom with From and To dates (no future dates; picked out of order, they're swapped by `customRange()`). Sentences use `periodPhrase()` ("this month", "from 1 Sept 2026 to 15 Sept 2026"). Ask BizBuddy uses the presets only.
+18. **Offline.** `<OfflineBanner>` in the app shell shows while `navigator.onLine` is false. It says records are saved on this phone and recording still works, and that pages not opened yet may not load. It must never say anything was synced: there is no server.
 
 ## Styling rules
 
@@ -126,10 +128,11 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 
 ## Next steps
 
-Every V0.1 screen exists, mistakes can be fixed, and the review's polish is done. `BIZBUDDY_PLAN.md` §38 says the next move is to put it in front of real shop owners, watch them use it, and fix the biggest problems. Before or alongside that:
+V0.1 is built: every screen in `BizBuddy_Web_App.md` §49 exists, mistakes can be fixed, and the tests cover the money rules.
 
-1. **Spec items still open:** the Custom date range (dashboard and Expenses), and an offline banner.
-2. **Accounts and a server** before shop owners rely on it day to day (see open questions).
+1. **Put it in front of real shop owners** (`BIZBUDDY_PLAN.md` §38): deploy it, give it to a few Nigerian shop owners, watch them record a real day, and write down every problem. Let that decide what comes next.
+2. **Accounts and a server** before shop owners rely on it day to day. Records live in one browser today, so a new phone or cleared site data loses them. Needs decisions (see open questions). Only `shared/lib/store.ts` should need to change underneath the screens.
+3. **Later, from the spec:** pages that load offline (a service worker), and WhatsApp (Phase 3 in the plan).
 
 ## Figma Make export: known bugs (don't port these)
 

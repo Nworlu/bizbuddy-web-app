@@ -1,11 +1,8 @@
-// Server only: sends a shop owner's note to an AI model and gets back structured actions.
-// Imported by app/api/tell/route.ts. Never import this from a client component: it needs an API key.
+// Server only: sends a shop owner's note to OpenAI and gets back structured actions.
+// Imported by app/api/tell/route.ts and the WhatsApp reader. Never import this from a client component.
 //
-// Provider: OpenAI when OPENAI_API_KEY is set (model OPENAI_MODEL, default gpt-5.4-mini), otherwise
-// Claude when ANTHROPIC_API_KEY is set. Both get the same instructions and must answer in the same
-// schema, so the rest of the app doesn't know or care which one read the note.
+// OpenAI is the only reader (OPENAI_API_KEY, model OPENAI_MODEL, default gpt-5.4-mini).
 
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { INTERPRETATION_SCHEMA, parseInterpretation, type Interpretation } from "../lib/intents";
 
@@ -42,10 +39,8 @@ export type TellInput = {
   chatWith?: string | null;
 };
 
-export function tellProvider(): "openai" | "claude" | null {
-  if (process.env.OPENAI_API_KEY) return "openai";
-  if (process.env.ANTHROPIC_API_KEY) return "claude";
-  return null;
+export function tellProvider(): "openai" | null {
+  return process.env.OPENAI_API_KEY ? "openai" : null;
 }
 
 function contextFor(input: TellInput): string {
@@ -61,12 +56,10 @@ function contextFor(input: TellInput): string {
   ].join("\n");
 }
 
-/** Asks the configured model what the note says. Throws TellRefusedError, TellBusyError, or an error to report as a failure. */
+/** Asks OpenAI what the note says. Throws TellRefusedError, TellBusyError, or an error to report as a failure. */
 export async function interpret(input: TellInput): Promise<Interpretation> {
-  const provider = tellProvider();
-  if (provider === "openai") return withOpenAI(input);
-  if (provider === "claude") return withClaude(input);
-  throw new Error("No AI provider configured");
+  if (!tellProvider()) throw new Error("No AI provider configured");
+  return withOpenAI(input);
 }
 
 // OpenAI ----------------------------------------------------------------------------------------------
@@ -99,30 +92,3 @@ async function withOpenAI(input: TellInput): Promise<Interpretation> {
   }
 }
 
-// Claude ----------------------------------------------------------------------------------------------
-
-let anthropicClient: Anthropic | undefined;
-
-async function withClaude(input: TellInput): Promise<Interpretation> {
-  anthropicClient ??= new Anthropic(); // Reads ANTHROPIC_API_KEY.
-  try {
-    const response = await anthropicClient.beta.messages.create({
-      model: "claude-opus-5-5",
-      max_tokens: 4000,
-      // Reading a short note is quick work: low effort keeps replies fast and cheap.
-      output_config: { effort: "low", format: { type: "json_schema", schema: INTERPRETATION_SCHEMA } },
-      // If a safety classifier declines, retry on Anthropic's recommended fallback model in the same call.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: [{ type: "text", text: INSTRUCTIONS, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: contextFor(input) }],
-    });
-    if (response.stop_reason === "refusal") throw new TellRefusedError("Declined");
-    const text = response.content.find((block) => block.type === "text");
-    if (!text || text.type !== "text") throw new Error("No answer in the response");
-    return parseInterpretation(text.text);
-  } catch (error) {
-    if (error instanceof Anthropic.RateLimitError || error instanceof Anthropic.InternalServerError) throw new TellBusyError(error.message);
-    throw error;
-  }
-}

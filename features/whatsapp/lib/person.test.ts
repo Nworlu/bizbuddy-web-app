@@ -1,59 +1,39 @@
 import { describe, expect, it } from "vitest";
 import type { Action } from "@/features/tell/lib/intents";
-import { chatHeading, chatPrompt, customersOnPhone, nextAbout, personalize, resolveChat, type KnownCustomer } from "./person";
+import { chatHeading, chatPrompt, nextAbout, personalize, resolveChat } from "./person";
 
-const david: KnownCustomer = { id: "c1", name: "David Okafor", phone: "0803 123 4567", businessId: "b1", shop: "Ada's Fashion" };
-const sarah: KnownCustomer = { id: "c2", name: "Sarah Ibrahim", phone: "08051234567", businessId: "b1", shop: "Ada's Fashion" };
-
-describe("customersOnPhone", () => {
-  it("matches a WhatsApp number to the phone saved on the customer", () => {
-    expect(customersOnPhone([david, sarah], "2348031234567")).toEqual([david]);
-    expect(customersOnPhone([david], "08039999999")).toEqual([]);
-  });
-});
+const david = { id: "c1", name: "David Okafor" };
+const sarah = { id: "c2", name: "Sarah Ibrahim" };
+const owner = { name: "Ada", shop: "Ada's Fashion", businessId: "b1", about: null as { id: string; name: string } | null };
 
 describe("resolveChat", () => {
-  const owner = { name: "Ada", shop: "Ada's Fashion", businessId: "b1", about: null };
-
-  it("treats the shop owner's number as the owner, even if a customer has it too", () => {
-    expect(resolveChat({ owner, matches: [david], profileName: "Ada" }).kind).toBe("owner");
+  it("treats the shop owner's number as the owner of that shop", () => {
+    expect(resolveChat({ owner, profileName: "Ada" })).toMatchObject({ kind: "owner", name: "Ada", shop: "Ada's Fashion" });
   });
 
-  it("treats a saved customer number as that customer", () => {
-    expect(resolveChat({ owner: null, matches: [david], profileName: "Dave" })).toMatchObject({ kind: "customer", name: "David Okafor", shop: "Ada's Fashion" });
-  });
-
-  it("does not guess when the number is on more than one customer", () => {
-    expect(resolveChat({ owner: null, matches: [david, { ...sarah, phone: david.phone }], profileName: null }).kind).toBe("ambiguous");
+  it("does not open a chat for a number that is not the owner's account", () => {
+    expect(resolveChat({ owner: null, profileName: "David" }).kind).toBe("unknown");
   });
 });
 
 describe("personalize", () => {
   const paid: Action = { kind: "payment", customer: null, amount: 20000, method: "Bank Transfer", date: null };
 
-  it("fills the customer's own name when they don't say it", () => {
-    const chat = resolveChat({ owner: null, matches: [david], profileName: null });
-    expect(personalize([paid, { kind: "question", topic: "owing", customer: null, period: "month" }], chat)).toEqual([
-      { ...paid, customer: "David Okafor" },
-      { kind: "question", topic: "customer_balance", customer: "David Okafor", period: "month" },
-    ]);
+  it("keeps an owner's note on the customer they were recording", () => {
+    const chat = resolveChat({ owner: { ...owner, about: david }, profileName: null });
+    expect(personalize([paid], chat)[0]).toMatchObject({ customer: "David Okafor" });
   });
 
   it("keeps a name they did say", () => {
-    const chat = resolveChat({ owner: null, matches: [david], profileName: null });
+    const chat = resolveChat({ owner: { ...owner, about: david }, profileName: null });
     const named: Action = { ...paid, customer: "Sarah Ibrahim" };
     expect(personalize([named], chat)).toEqual([named]);
-  });
-
-  it("keeps an owner's chat on the customer they were talking about", () => {
-    const chat = resolveChat({ owner: { name: "Ada", shop: "Ada's Fashion", businessId: "b1", about: { id: "c1", name: "David Okafor" } }, matches: [], profileName: null });
-    expect(personalize([paid], chat)[0]).toMatchObject({ customer: "David Okafor" });
   });
 });
 
 describe("nextAbout", () => {
   it("switches to the one customer named in the note", () => {
-    expect(nextAbout([{ kind: "payment", customer: "sarah ibrahim", amount: 5000, method: null, date: null }], [david, sarah])).toEqual({ id: "c2", name: "Sarah Ibrahim" });
+    expect(nextAbout([{ kind: "payment", customer: "sarah ibrahim", amount: 5000, method: null, date: null }], [david, sarah])).toEqual(sarah);
   });
 
   it("leaves the current person when nobody new is named", () => {
@@ -62,15 +42,9 @@ describe("nextAbout", () => {
 });
 
 describe("chatHeading", () => {
-  it("speaks to the customer about what they owe", () => {
-    const chat = resolveChat({ owner: null, matches: [david], profileName: null });
-    expect(chatHeading(chat, 35000)).toBe("Hi David. You still owe *Ada's Fashion* ₦35,000.");
-    expect(chatHeading(chat, 0)).toBe("Hi David. You don't owe *Ada's Fashion* anything right now.");
-  });
-
-  it("tells the owner which customer the chat is about", () => {
-    const chat = resolveChat({ owner: { name: "Ada", shop: "Ada's Fashion", businessId: "b1", about: { id: "c1", name: "David Okafor" } }, matches: [], profileName: null });
-    expect(chatHeading(chat)).toBe("About *David Okafor*");
-    expect(chatPrompt(chat)).toContain("David Okafor");
+  it("greets the owner about their shop", () => {
+    const chat = resolveChat({ owner, profileName: null });
+    expect(chatHeading(chat)).toBe("Hi Ada. This is BizBuddy for *Ada's Fashion*.");
+    expect(chatPrompt(chat)).toContain("run the shop");
   });
 });

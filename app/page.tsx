@@ -3,11 +3,11 @@ import { LandingScreen } from "@/features/marketing/screen/landing-screen";
 import { FAQ } from "@/features/marketing/content/faq";
 
 export const metadata: Metadata = {
-  title: "BizBuddy — know who still owes you",
-  description: "A simple book for Nigerian shops. Record a sale, what was paid, and what you spent. See who still owes you, in naira, on your phone.",
+  title: "BizBuddy — run the shop from one book",
+  description: "A book for Nigerian shops. Record what you sold, what came in, and what you spent.",
   openGraph: {
-    title: "BizBuddy — know who still owes you",
-    description: "Record sales, part payments, and expenses. See who still owes you.",
+    title: "BizBuddy — run the shop from one book",
+    description: "Record what you sold, what came in, and what you spent.",
     locale: "en_NG",
     type: "website",
   },

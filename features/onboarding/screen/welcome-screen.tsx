@@ -225,7 +225,7 @@ function Onboarding({ data }: { data: BizData }) {
             </div>
             <h1 className="text-2xl font-bold text-ink">Welcome to BizBuddy</h1>
             <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-ink-muted">
-              Simple bookkeeping for Nigerian small businesses. Know who paid, who owes you, and how much you&apos;ve made.
+              Simple bookkeeping for Nigerian small businesses. Record what you sold, what came in, and what you spent.
             </p>
             <button type="button" onClick={() => setStep("account")} className="mt-8 w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-800">
               Get Started

@@ -13,7 +13,7 @@ const STEP_TONES = [
   "flex min-h-64 flex-col justify-between rounded-[1.75rem] bg-brand-800 p-6 text-brand-100 shadow-xl shadow-brand-900/20 md:min-h-80 md:rotate-[-1deg] md:p-7 [&_h3]:text-white",
 ];
 
-const RIBBON = ["Record the sale", "See who still owes you", "Count what came in", "Cash, transfer, or POS"];
+const RIBBON = ["Record the sale", "Count what came in", "Write what you spent", "See the day"];
 const RIBBON_TWO = ["Works offline", "Backed up to your account", "Only you see your books", "Made for Nigerian shops"];
 
 export function LandingScreen() {
@@ -97,12 +97,12 @@ export function LandingScreen() {
       <main id="main">
         <section className="px-4 pb-8 pt-16 text-center md:pt-24">
           <h1 className="reveal-load mx-auto max-w-4xl text-balance text-5xl font-bold leading-[0.95] tracking-tight md:text-7xl">
-            <span className="text-stone-500">Know who paid,</span>
+            <span className="text-stone-500">Run the shop</span>
             <br />
-            and who still owes you.
+            from one book.
           </h1>
           <p className="reveal-load mx-auto mt-6 max-w-xl text-pretty text-base leading-7 text-stone-600 md:text-lg" style={{ animationDelay: "120ms" }}>
-            A simple book for shops that sell on WhatsApp, Instagram, and in person. Record the sale, what they paid, and what you spent.
+            A book for the business. Record what you sold, what came in, and what you spent, whether the sale was in the shop, on Instagram, or on WhatsApp.
           </p>
           <div className="reveal-load mt-8 flex items-center justify-center gap-2" style={{ animationDelay: "200ms" }}>
             <Link href="/welcome" className="rounded-full bg-ink px-6 py-3 text-base font-semibold text-white hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
@@ -118,14 +118,14 @@ export function LandingScreen() {
         <section aria-label="Example sale" className="relative mx-auto flex max-w-sm flex-col px-6 pb-16 pt-4 md:block md:h-96 md:max-w-3xl md:px-0 md:pb-0 md:pt-0">
           <Slip className="self-start [--tilt:-3deg] md:left-[8%] md:top-8 md:[--tilt:-8deg]" delay="0s" name="David" detail="Sneakers" label="Sale" amount="₦85,000" />
           <Slip className="-mt-3 self-end [--tilt:3deg] md:left-[36%] md:top-20 md:mt-0 md:[--tilt:5deg]" delay="0.8s" name="Paid today" detail="Bank transfer" label="Paid" amount="₦50,000" />
-          <Slip className="-mt-3 self-start [--tilt:-2deg] md:right-[8%] md:top-6 md:mt-0" delay="1.4s" name="Still owes" detail="Until the rest is paid" label="Balance" amount="₦35,000" emphasis />
+          <Slip className="-mt-3 self-start [--tilt:-2deg] md:right-[8%] md:top-6 md:mt-0" delay="1.4s" name="Delivery" detail="Sent today" label="Spent" amount="₦4,000" emphasis />
         </section>
 
         <CurvedRibbons top={RIBBON} bottom={RIBBON_TWO} />
 
         <section className="px-4 py-20 md:py-28">
           <p className="reveal mx-auto max-w-4xl text-balance text-center text-3xl font-bold leading-tight tracking-tight md:text-5xl">
-            Sold two sneakers to David for ₦85,000. He paid ₦50,000. He still owes ₦35,000.
+            Sold two sneakers for ₦85,000. ₦50,000 came in. ₦4,000 went on delivery.
           </p>
         </section>
 
@@ -137,7 +137,7 @@ export function LandingScreen() {
                 How it works
               </p>
               <h2 className="max-w-xl text-balance text-4xl font-bold tracking-tight md:text-right md:text-5xl">
-                From a sale to a balance <span className="text-stone-500">you can see.</span>
+                From the sale to the day <span className="text-stone-500">in one place.</span>
               </h2>
             </div>
             <ol className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">

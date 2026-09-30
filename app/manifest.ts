@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "BizBuddy",
     short_name: "BizBuddy",
-    description: "Record sales, part payments, and expenses. See who still owes you.",
+    description: "Record what you sold, what came in, and what you spent.",
     id: "/dashboard",
     start_url: "/dashboard",
     scope: "/",

@@ -192,7 +192,7 @@ function AskCard() {
         <AskIcon className="size-5 text-brand-200" />
         Tell BizBuddy
       </h2>
-      <p className="-mt-1.5 mb-3 text-xs text-brand-100">{readsNotes ? "Type what happened, or ask about your books." : "Ask about your sales, expenses, and who owes you."}</p>
+      <p className="-mt-1.5 mb-3 text-xs text-brand-100">{readsNotes ? "Type what happened, or ask about your books." : "Ask about sales, money that came in, and what you spent."}</p>
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -206,7 +206,7 @@ function AskCard() {
         <input
           id="ask-input"
           type="text"
-          placeholder={readsNotes ? "Sold 2 shoes to David for 85k…" : "Who owes me money?"}
+          placeholder={readsNotes ? "Sold 2 shoes to David for 85k…" : "How much did I sell this month?"}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/40"

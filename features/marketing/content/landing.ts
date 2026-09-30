@@ -1,7 +1,7 @@
 export const BENEFITS = [
   {
-    title: "See the debt, not a guess",
-    body: "A customer’s balance is the sale minus every payment, including money they paid on a later day.",
+    title: "The sale stays one record",
+    body: "Write the total and every payment against it, including money that comes in on a later day.",
     points: ["Sale total", "Every payment", "What’s left"],
   },
   {
@@ -23,6 +23,6 @@ export const BENEFITS = [
 
 export const STEPS = [
   { title: "Name your shop", body: "Your name, the business, and what you sell. That is the whole setup." },
-  { title: "Record the sale", body: "Write what you sold and what they paid today. The rest is what they still owe." },
-  { title: "Open the day", body: "See sales, money collected, expenses, and who still owes you." },
+  { title: "Record the sale", body: "Write what you sold, what came in, and how it was paid. Cash, transfer, or POS." },
+  { title: "Open the day", body: "See what you sold, what came in, and what you spent." },
 ];

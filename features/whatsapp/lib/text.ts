@@ -39,4 +39,4 @@ export function notLinked(appUrl: string | undefined): string {
 }
 
 export const HELP =
-  "Tell me what happened, like:\n• _Sold 2 shoes to David for 85k, he paid 50k_\n• _Paid 4k for delivery_\n• _Musa paid 20k by transfer_\n\nOr ask: _Who owes me?_";
+  "Tell me what happened in the shop, like:\n• _Sold 2 shoes to David for 85k, he paid 50k_\n• _Paid 4k for delivery_\n• _How much did I sell this month?_";

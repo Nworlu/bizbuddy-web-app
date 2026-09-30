@@ -17,7 +17,7 @@ export interface Answer {
   suggestions?: string[];
 }
 
-export const SUGGESTIONS = ["Who owes me?", "How much did I sell this month?", "How much did I spend this month?"];
+export const SUGGESTIONS = ["How much did I sell this month?", "How much did I spend this month?", "Who owes me?"];
 
 const has = (q: string, words: string[]) => words.some((w) => new RegExp(`\\b${w}`).test(q));
 
@@ -108,7 +108,7 @@ function collectedIn(period: Period, data: BizData, now: Date): Answer {
 }
 
 const FALLBACK: Answer = {
-  text: "I can answer questions about your sales, your expenses, and who owes you. Try one of these:",
+  text: "I can answer questions about your sales, money that came in, and what you spent. Try one of these:",
   suggestions: SUGGESTIONS,
 };
 

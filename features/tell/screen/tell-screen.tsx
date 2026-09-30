@@ -114,7 +114,7 @@ export function TellPage() {
       <div role="log" aria-live="polite" aria-label="Notes and replies" className="space-y-4">
         <Bubble from="bizbuddy">
           <p>
-            Hi {business.ownerName}. {readsNotes ? "Tell me what happened in your own words, like “Sold 2 shoes to David for 85k, he paid 50k”. I'll show you what I understood before anything is saved." : "Ask me who owes you, how much you sold, or how much you spent."}
+            Hi {business.ownerName}. {readsNotes ? "Tell me what happened in your own words, like “Sold 2 shoes to David for 85k, he paid 50k”. I'll show you what I understood before anything is saved." : "Ask me how much you sold, what came in, or what you spent."}
           </p>
         </Bubble>
         {messages.map((message) => (
@@ -151,7 +151,7 @@ export function TellPage() {
             value={input}
             maxLength={MAX}
             onChange={(event) => setInput(event.target.value)}
-            placeholder={readsNotes ? "e.g. Musa paid 20k by transfer" : "e.g. How much does David owe?"}
+            placeholder={readsNotes ? "e.g. Musa paid 20k by transfer" : "e.g. How much did I sell this month?"}
             autoComplete="off"
             className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-200"
           />

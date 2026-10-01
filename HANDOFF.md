@@ -107,12 +107,13 @@ app/
   api/tell/route.ts            POST: the AI reads a note (signed-in users only), with the recent chat and whether socials are saved
   api/whatsapp/route.ts        WhatsApp Cloud API webhook: GET verify, POST signed messages, with the recent chat and what this shop has already confirmed
   api/whatsapp/welcome/route.ts  POST: sends the signed-in owner the WhatsApp welcome template, once per account
+  api/account/route.ts         DELETE: removes the signed-in account and the shop that hangs off it
   api/tell/learn/route.ts      POST: what the owner did with a draft (saved / corrected / cancelled / undone / auto); remembers it, counts toward auto-save
   api/tell/autosave/route.ts   GET / POST: the auto-save setting for the signed-in shop
   api/tell/knowledge/route.ts  GET / PATCH / POST: what BizBuddy knows (description, products, socials); read a picture or website; save
   api/whatsapp/remind/route.ts GET (scheduler, CRON_SECRET): due reminders, and one reminder per note left waiting on Save / Cancel
   api/reminders/route.ts       GET / POST / DELETE / PATCH: the signed-in owner's reminders and unsaved-note setting (phone from the login)
-  (app)/settings/page.tsx      Settings: account (back up / status / log out), business details, record counts, sample shop, delete everything
+  (app)/settings/page.tsx      Settings: account (back up / status / log out / delete account), business details, record counts, sample shop, delete everything
   login/page.tsx               log in with phone + password
 
 features/
@@ -139,7 +140,7 @@ shared/
     phone.ts                   Nigerian phone numbers -> 234XXXXXXXXXX -> private login name, and back (phoneFromLoginEmail)
     sync.ts                    offline-first sync: outbox, diff, row mapping, merge, syncOnce() (no Supabase code)
     supabase.ts                Supabase client + the RemoteApi syncOnce() uses; null without env keys
-    account.ts                 createAccount(), logIn(), logOut()
+    account.ts                 createAccount(), logIn(), logOut(), deleteAccount()
     sync-runner.ts             runs syncOnce() in the background; useSyncStatus()
     store.ts                   localStorage store (books + outbox in one entry) + useBizData() + useSyncMeta() + linkShopToAccount() + joinAccount() + unlinkPhone() + syncIO + createBusiness() + recordSale() + recordPayment() + addCustomer() + recordCustomerPayment() + recordExpense() + updateBusiness() + resetAll() + updateSale() + deleteSale() + deletePayment() + updateExpense() + deleteExpense() + updateCustomer() + deleteCustomer()
     toast.ts                   showToast(); the shell listens and shows it
@@ -184,6 +185,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
    - `syncOnce()` sends the outbox, then pulls rows the server changed since the last pull (with a 60-second overlap). A change still in the outbox beats the pulled copy. The server's `updated_at` decides what's new, never the phone's clock. Deletes are sent as `deleted = true`.
    - Record ids are made on the phone; on the server the key is `(business_id, id)`. Row level security lets each user reach only their own shop (tested on Postgres in `supabase/migrations/0001_bizbuddy.sql`'s rules).
    - The sample shop is never sent. It can't be opened while signed in, and "Delete everything" is hidden while signed in (log out instead). Logging in refuses to replace books that aren't in an account. Logging out removes the books from the phone and warns if changes haven't reached the account.
+   - **Delete account** (Settings, while signed in) calls `DELETE /api/account`. The server takes the user from the access token and the phone from that login, never from the request. It clears the phone-only rows (`whatsapp_chats`, `whatsapp_thread`), then deletes the auth user. The shop, books, memory, reminders, and drafts cascade. The books are then removed from this phone. It cannot be undone.
    - The UI never says "Backed up" until the server has confirmed (UX spec §28). Status shows in the sidebar and mobile header (`SyncBadge`).
    - Without `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`), accounts switch off and the app works on the phone only, as before.
    - **Setup:**
@@ -316,11 +318,9 @@ None of these IDs are secrets. The tokens and keys live only in `.env` (git-igno
 
 **Accounts**
 
-Two accounts exist:
-- 0811 295 9740: the product owner's test account.
-- nworluegbe@gmail.com: kept on purpose.
+One account is kept on purpose: nworluegbe@gmail.com.
 
-The account for 0811 295 9840 was deleted on request. Its rows were removed by cascade.
+The account for 0811 295 9740 (Jehobyte) was deleted on request on 1 Oct 2026, along with its shop, books, reminders, and WhatsApp chat rows. The account for 0811 295 9840 was deleted earlier. Both were removed by cascade.
 
 **Meta / WhatsApp**
 

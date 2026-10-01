@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "What BizBuddy keeps about your shop, where it is stored, and who can see it.",
 };
 
-const UPDATED = "30 September 2026";
+const UPDATED = "1 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
           Logging out removes the books from this phone. The account keeps its copy. If a change has not reached the account yet, logging out drops that change. Settings says so before you log out.
         </p>
         <p>
-          Delete everything in Settings removes the shop from this phone. That button is hidden while you are signed in, because it would wipe the account&apos;s books. There is no button yet that deletes the account itself.
+          Delete everything in Settings removes the shop from this phone. That button is hidden while you are signed in, because it would wipe the account&apos;s books. Delete account, in Settings while you are signed in, removes the account and its backup, and clears the books from this phone. It cannot be undone.
         </p>
       </section>
 
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
       <section>
         <h2>How long it stays</h2>
         <p>
-          Records stay until you delete them on this phone, or until the account that holds the backup is removed. Lessons from confirmed notes stay with the account and are replaced as you confirm newer notes. The eight newest confirmed notes are kept.
+          Records stay until you delete them on this phone, or until you delete the account that holds the backup. Lessons from confirmed notes stay with the account and are replaced as you confirm newer notes. The eight newest confirmed notes are kept. Deleting the account removes those lessons too.
         </p>
       </section>
 

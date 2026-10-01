@@ -71,6 +71,26 @@ export async function logOut() {
   unlinkPhone();
 }
 
+/**
+ * Deletes the signed-in account, then removes the books from this phone.
+ * Needs internet. The server deletes only this login, never a number sent from the browser.
+ */
+export async function deleteAccount(): Promise<void> {
+  const session = (await supabase()?.auth.getSession())?.data.session;
+  if (!session) throw new Error("Log in first.");
+  let response: Response;
+  try {
+    response = await fetch("/api/account", { method: "DELETE", headers: { authorization: `Bearer ${session.access_token}` } });
+  } catch {
+    throw new Error("You need internet to delete the account. Your books stay until then.");
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || "Couldn't delete the account. Try again.");
+  }
+  await logOut();
+}
+
 /** The signed-in user's id, if the saved session is still there (it is, offline too). */
 export async function sessionUserId(): Promise<string | null> {
   const sb = supabase();

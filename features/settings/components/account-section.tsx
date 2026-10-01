@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AUTO_SAVE_AFTER } from "@/features/tell/lib/autosave";
 import { getAutoSave, setAutoSave } from "@/features/tell/lib/client";
 import type { AutoSave } from "@/features/tell/lib/memory";
 import { syncLabel } from "@/features/shell/components/sync-badge";
-import { accountErrorMessage, createAccount, logOut, MIN_PASSWORD, sendWhatsAppWelcome } from "@/shared/lib/account";
+import { accountErrorMessage, createAccount, deleteAccount, logOut, MIN_PASSWORD, sendWhatsAppWelcome } from "@/shared/lib/account";
 import { WhatsAppOptIn } from "@/shared/ui/whatsapp-opt-in";
 import { formatDate } from "@/shared/lib/format";
 import { displayPhone, normalizePhone } from "@/shared/lib/phone";
@@ -97,6 +97,9 @@ function SignedIn({ phone }: { phone: string }) {
   const router = useRouter();
   const status = useSyncStatus();
   const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteBusy = useRef(false);
   const { text } = syncLabel(status);
   const waiting = status.pending;
 
@@ -104,6 +107,20 @@ function SignedIn({ phone }: { phone: string }) {
     await logOut();
     setConfirming(false);
     router.replace("/login");
+  }
+
+  async function confirmDelete() {
+    if (deleteBusy.current) return;
+    deleteBusy.current = true;
+    setDeleteError(null);
+    try {
+      await deleteAccount();
+      setDeleting(false);
+      router.replace("/welcome");
+    } catch (error) {
+      deleteBusy.current = false;
+      setDeleteError(error instanceof Error ? error.message : "Couldn't delete the account. Try again.");
+    }
   }
 
   return (
@@ -132,6 +149,17 @@ function SignedIn({ phone }: { phone: string }) {
       <button type="button" onClick={() => setConfirming(true)} className="mt-2 w-full rounded-xl py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50">
         Log out of this phone
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          setDeleteError(null);
+          setDeleting(true);
+        }}
+        className="mt-1 block w-full rounded-xl bg-rose-50 px-4 py-3 text-left hover:bg-rose-100"
+      >
+        <span className="block text-sm font-medium text-rose-700">Delete account</span>
+        <span className="block text-xs text-rose-700/80">Remove this account, its backup, and the books on this phone.</span>
+      </button>
 
       <ConfirmDialog
         open={confirming}
@@ -148,6 +176,23 @@ function SignedIn({ phone }: { phone: string }) {
         ) : (
           <p>Your books stay in your account. They&apos;re removed from this phone until you log in again.</p>
         )}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={deleting}
+        title="Delete this account?"
+        confirmLabel="Delete account"
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => {
+          if (deleteBusy.current) return;
+          setDeleting(false);
+        }}
+        error={deleteError}
+      >
+        <p>
+          This deletes the account for {displayPhone(phone)}, the shop&apos;s backup, and anything BizBuddy remembered from this number. The books are removed from this phone too. It can&apos;t be undone.
+        </p>
+        {waiting > 0 && <p>{waiting === 1 ? "1 change on this phone hasn't" : `${waiting} changes on this phone haven't`} been backed up. Those go too.</p>}
       </ConfirmDialog>
     </Card>
   );

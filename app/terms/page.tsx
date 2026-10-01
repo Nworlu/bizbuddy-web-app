@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "The terms for using BizBuddy to keep your shop's sales, money in, and spending.",
 };
 
-const UPDATED = "30 September 2026";
+const UPDATED = "1 October 2026";
 
 export default function TermsPage() {
   return (
@@ -77,7 +77,7 @@ export default function TermsPage() {
           BizBuddy is provided as it is. A phone can run out of storage, a browser can clear site data, and a connection can fail. Keep your own copy of anything you cannot afford to lose, and use an account if you want the backup.
         </p>
         <p>
-          BizBuddy may change, pause, or stop the product. Records already saved on your phone stay on that phone until you delete them or the browser removes them. The account copy stays until the account is removed.
+          BizBuddy may change, pause, or stop the product. Records already saved on your phone stay on that phone until you delete them or the browser removes them. The account copy stays until you delete the account in Settings, or the account is removed.
         </p>
       </section>
 

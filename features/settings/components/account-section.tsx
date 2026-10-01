@@ -16,6 +16,7 @@ import { syncNow, useSyncStatus } from "@/shared/lib/sync-runner";
 import { showToast } from "@/shared/lib/toast";
 import type { BizData, Business } from "@/shared/lib/types";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 /** Backing up to an account (not signed in yet), or the account's status and log-out (signed in). */
 export function AccountSection({ data, business }: { data: BizData; business: Business }) {
@@ -44,7 +45,7 @@ function BackUp({ business }: { business: Business }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!normalizePhone(phone)) return setError("Enter a Nigerian phone number, like 0803 123 4567.");
+    if (!normalizePhone(phone)) return setError("Enter a valid phone number for the country you selected.");
     if (password.length < MIN_PASSWORD) return setError(`Choose a password of at least ${MIN_PASSWORD} characters.`);
     setSaving(true);
     setError(null);
@@ -68,7 +69,7 @@ function BackUp({ business }: { business: Business }) {
       <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
         <div>
           <label htmlFor="backup-phone" className="mb-1.5 block text-sm font-medium text-ink">Phone number</label>
-          <input id="backup-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 0803 123 4567" className={inputClass} />
+          <PhoneInput id="backup-phone" value={phone} onChange={setPhone} />
         </div>
         <div>
           <label htmlFor="backup-password" className="mb-1.5 block text-sm font-medium text-ink">Choose a password</label>

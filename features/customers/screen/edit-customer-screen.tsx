@@ -9,6 +9,8 @@ import type { BizData, Customer } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { routes } from "@/shared/lib/routes";
+import { normalizePhone } from "@/shared/lib/phone";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 /** Route entry: the id comes from ?id= so the page is static and opens offline. Keyed so forms reset between records. */
 export function EditCustomerRoute() {
@@ -50,14 +52,14 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
     const clash = name.trim() ? findCustomerByName(data, name) : undefined;
     const next = {
       name: !name.trim() ? "Enter the customer's name." : clash && clash.id !== customer.id ? `${clash.name} is already a customer.` : undefined,
-      phone: phone.trim() && phone.replace(/\D/g, "").length < 10 ? "Enter a phone number like 08012345678, or leave it empty." : undefined,
+      phone: phone.trim() && !normalizePhone(phone) ? "Enter a valid phone number, or leave it empty." : undefined,
     };
     setErrors(next);
     if (next.name || next.phone) return;
 
     setSaving(true);
     try {
-      updateCustomer({ customerId: customer.id, name, phone });
+      updateCustomer({ customerId: customer.id, name, phone: phone.trim() ? normalizePhone(phone) ?? phone.trim() : "" });
       showToast("Customer updated.");
       router.push(routes.customer(customer.id));
     } catch {
@@ -104,17 +106,11 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
           <label htmlFor="edit-customer-phone" className="mb-1.5 block text-sm font-medium text-ink">
             Phone <span className="font-normal text-ink-muted">(optional)</span>
           </label>
-          <input
+          <PhoneInput
             id="edit-customer-phone"
-            type="tel"
-            inputMode="tel"
             value={phone}
-            onChange={(e) => { setPhone(e.target.value); setErrors({}); }}
-            placeholder="e.g. 08012345678"
-            autoComplete="off"
-            aria-invalid={!!errors.phone}
-            aria-describedby={errors.phone ? "edit-customer-phone-error" : undefined}
-            className={fieldClass(!!errors.phone)}
+            onChange={(value) => { setPhone(value); setErrors({}); }}
+            hasError={!!errors.phone}
           />
           {errors.phone && <p id="edit-customer-phone-error" className="mt-1 text-xs text-rose-700">{errors.phone}</p>}
         </div>

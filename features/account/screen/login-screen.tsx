@@ -4,17 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { accountErrorMessage, logIn } from "@/shared/lib/account";
-import { displayPhone, normalizePhone } from "@/shared/lib/phone";
+import { normalizePhone } from "@/shared/lib/phone";
 import { useBizData, useSyncMeta } from "@/shared/lib/store";
 import { accountsEnabled } from "@/shared/lib/supabase";
 import { Logo } from "@/shared/ui/logo";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 export function LoginPage() {
   const router = useRouter();
   const data = useBizData();
   const meta = useSyncMeta();
   const again = meta !== null; // Signed out on a phone that's still linked: log in again, keep the books.
-  const [phone, setPhone] = useState(() => (meta ? displayPhone(meta.phone) : ""));
+  const [phone, setPhone] = useState(() => meta?.phone ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -24,7 +25,7 @@ export function LoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!normalizePhone(phone)) return setError("Enter your phone number, like 0803 123 4567.");
+    if (!normalizePhone(phone)) return setError("Enter a valid phone number for the country you selected.");
     if (!password) return setError("Enter your password.");
     setSaving(true);
     setError(null);
@@ -70,7 +71,7 @@ export function LoginPage() {
         <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
           <div>
             <label htmlFor="login-phone" className="mb-1.5 block text-sm font-medium text-ink">Phone number</label>
-            <input id="login-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 0803 123 4567" className={inputClass} />
+            <PhoneInput id="login-phone" value={phone} onChange={setPhone} />
           </div>
           <div>
             <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-ink">Password</label>

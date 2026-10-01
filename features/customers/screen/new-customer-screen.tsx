@@ -7,6 +7,8 @@ import { addCustomer, findCustomerByName } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { routes } from "@/shared/lib/routes";
+import { normalizePhone } from "@/shared/lib/phone";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 export function NewCustomerPage() {
   const { data } = useBiz();
@@ -20,17 +22,16 @@ export function NewCustomerPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const digits = phone.replace(/\D/g, "");
     const next = {
       name: !name.trim() ? "Enter the customer's name." : existing ? `${existing.name} is already a customer.` : undefined,
-      phone: phone.trim() && digits.length < 10 ? "Enter a phone number like 08012345678, or leave it empty." : undefined,
+      phone: phone.trim() && !normalizePhone(phone) ? "Enter a valid phone number, or leave it empty." : undefined,
     };
     setErrors(next);
     if (next.name || next.phone) return;
 
     setSaving(true);
     try {
-      const customer = addCustomer({ name, phone });
+      const customer = addCustomer({ name, phone: phone.trim() ? normalizePhone(phone) ?? phone.trim() : "" });
       showToast(`${customer.name} added.`);
       router.push(routes.customer(customer.id));
     } catch {
@@ -72,17 +73,11 @@ export function NewCustomerPage() {
           <label htmlFor="new-customer-phone" className="mb-1.5 block text-sm font-medium text-ink">
             Phone <span className="font-normal text-ink-muted">(optional)</span>
           </label>
-          <input
+          <PhoneInput
             id="new-customer-phone"
-            type="tel"
-            inputMode="tel"
             value={phone}
-            onChange={(event) => { setPhone(event.target.value); setErrors({}); }}
-            placeholder="e.g. 08012345678"
-            autoComplete="off"
-            aria-invalid={!!errors.phone}
-            aria-describedby={errors.phone ? "new-customer-phone-error" : undefined}
-            className={fieldClass(!!errors.phone)}
+            onChange={(value) => { setPhone(value); setErrors({}); }}
+            hasError={!!errors.phone}
           />
           {errors.phone && <p id="new-customer-phone-error" className="mt-1 text-xs text-rose-700">{errors.phone}</p>}
         </div>

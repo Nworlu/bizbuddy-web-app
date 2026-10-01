@@ -11,6 +11,8 @@ import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { AccountSection } from "../components/account-section";
 import { RemindersSection } from "../components/reminders-section";
 import { KnowledgeSection } from "../components/knowledge-section";
+import { normalizePhone } from "@/shared/lib/phone";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 export function SettingsPage() {
   const { data, business } = useBiz();
@@ -67,9 +69,9 @@ function BusinessSection({ business }: { business: Business }) {
     event.preventDefault();
     if (!name.trim()) return setError("Enter your business name.");
     if (!ownerName.trim()) return setError("Enter your name.");
-    if (phone.trim() && phone.replace(/\D/g, "").length < 10) return setError("Enter a phone number like 08012345678, or leave it empty.");
+    if (phone.trim() && !normalizePhone(phone)) return setError("Enter a valid phone number, or leave it empty.");
     try {
-      updateBusiness({ name, ownerName, phone, type, about });
+      updateBusiness({ name, ownerName, phone: phone.trim() ? normalizePhone(phone) ?? phone.trim() : "", type, about });
       showToast("Business details saved.");
       setEditing(false);
     } catch {
@@ -104,7 +106,7 @@ function BusinessSection({ business }: { business: Business }) {
           <input id="settings-owner-name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} autoComplete="name" className={inputClass} />
         </Field>
         <Field id="settings-phone" label="Phone">
-          <input id="settings-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" placeholder="e.g. 08012345678" className={inputClass} />
+          <PhoneInput id="settings-phone" value={phone} onChange={setPhone} />
         </Field>
         <fieldset>
           <legend className="mb-1.5 block text-sm font-medium text-ink">Business type</legend>

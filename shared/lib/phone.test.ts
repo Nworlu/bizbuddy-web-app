@@ -1,13 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { displayPhone, loginEmail, normalizePhone, phoneFromLoginEmail } from "./phone";
+import { displayPhone, loginEmail, normalizePhone, phoneFromLoginEmail, phoneFromParts } from "./phone";
 
 describe("normalizePhone", () => {
   it.each(["08031234567", "0803 123 4567", "+234 803 123 4567", "2348031234567", "8031234567", "0803-123-4567"])("reads %j as the same number", (input) => {
     expect(normalizePhone(input)).toBe("2348031234567");
   });
 
-  it.each(["", "0803123456", "080312345678", "02012345678", "12345678901", "abc", "+44 7700 900123"])("rejects %j", (input) => {
+  it.each(["", "0803123456", "080312345678", "02012345678", "12345678901", "abc"])("rejects %j", (input) => {
     expect(normalizePhone(input)).toBeNull();
+  });
+
+  it("accepts other countries when the full international number is given", () => {
+    expect(normalizePhone("+44 7700 900123")).toBe("447700900123");
+  });
+});
+
+describe("phoneFromParts", () => {
+  it("builds a Nigerian number from the selector and national field", () => {
+    expect(phoneFromParts("234", "0803 123 4567")).toBe("2348031234567");
+  });
+
+  it("builds a UK number", () => {
+    expect(phoneFromParts("44", "7700 900123")).toBe("447700900123");
   });
 });
 
@@ -46,5 +60,9 @@ describe("phoneFromLoginEmail", () => {
     expect(phoneFromLoginEmail("owner@gmail.com")).toBeNull();
     expect(phoneFromLoginEmail("owner+123@gmail.com")).toBeNull();
     expect(phoneFromLoginEmail(null)).toBeNull();
+  });
+
+  it("reads longer international numbers from login addresses", () => {
+    expect(phoneFromLoginEmail("owner+447700900123@gmail.com")).toBe("447700900123");
   });
 });

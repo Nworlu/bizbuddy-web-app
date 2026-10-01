@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import { COUNTRIES, countryByIso, type Country } from "@/shared/lib/countries";
+import { COUNTRIES, countryByIso, countrySelectLabel, type Country } from "@/shared/lib/countries";
 
 type PhoneInputProps = {
   id?: string;
@@ -70,11 +70,11 @@ function CountrySelect({ id, value, onChange, disabled }: { id: string; value: s
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className={`${fieldClass} w-[5.5rem] appearance-none pr-8 ${disabled ? "" : "cursor-pointer"}`}
+        className={`${fieldClass} w-[7.25rem] appearance-none pr-8 ${disabled ? "" : "cursor-pointer"}`}
       >
         {COUNTRIES.map((c) => (
           <option key={c.iso} value={c.iso}>
-            {c.flag} {c.iso}
+            {c.flag} {countrySelectLabel(c)}
           </option>
         ))}
       </select>

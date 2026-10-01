@@ -11,10 +11,10 @@ export type Country = {
 
 export const COUNTRIES: Country[] = [
   { iso: "NG", name: "Nigeria", dial: "234", flag: "🇳🇬", example: "803 123 4567" },
+  { iso: "GB", name: "UK", dial: "44", flag: "🇬🇧", example: "7700 900123" },
   { iso: "GH", name: "Ghana", dial: "233", flag: "🇬🇭", example: "24 123 4567" },
   { iso: "KE", name: "Kenya", dial: "254", flag: "🇰🇪", example: "712 345678" },
   { iso: "ZA", name: "South Africa", dial: "27", flag: "🇿🇦", example: "82 123 4567" },
-  { iso: "GB", name: "United Kingdom", dial: "44", flag: "🇬🇧", example: "7700 900123" },
   { iso: "US", name: "United States", dial: "1", flag: "🇺🇸", example: "202 555 0123" },
   { iso: "CA", name: "Canada", dial: "1", flag: "🇨🇦", example: "416 555 0123" },
   { iso: "IN", name: "India", dial: "91", flag: "🇮🇳", example: "98765 43210" },
@@ -26,7 +26,13 @@ export const COUNTRIES: Country[] = [
 export const DEFAULT_COUNTRY = COUNTRIES[0];
 
 export function countryByIso(iso: string): Country {
-  return COUNTRIES.find((c) => c.iso === iso) ?? DEFAULT_COUNTRY;
+  const normalized = iso.toUpperCase() === "UK" ? "GB" : iso.toUpperCase();
+  return COUNTRIES.find((c) => c.iso === normalized) ?? DEFAULT_COUNTRY;
+}
+
+/** Short label for the country dropdown (UK instead of GB). */
+export function countrySelectLabel(country: Country): string {
+  return country.name;
 }
 
 export function countryByDial(dial: string): Country | undefined {

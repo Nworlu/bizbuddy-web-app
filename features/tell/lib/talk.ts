@@ -60,6 +60,16 @@ export function loadThread(businessId?: string): Turn[] {
   }
 }
 
+/** Drops the Tell BizBuddy chat kept on this phone for this shop. */
+export function clearThread(businessId?: string): void {
+  if (typeof localStorage === "undefined" || !businessId) return;
+  try {
+    localStorage.removeItem(KEY(businessId));
+  } catch {
+    // The account is already gone on the server. This phone may keep the chat until site data is cleared.
+  }
+}
+
 export function saveThread(businessId: string | undefined, turns: Turn[]): void {
   if (typeof localStorage === "undefined") return;
   try {

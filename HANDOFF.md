@@ -185,7 +185,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
    - `syncOnce()` sends the outbox, then pulls rows the server changed since the last pull (with a 60-second overlap). A change still in the outbox beats the pulled copy. The server's `updated_at` decides what's new, never the phone's clock. Deletes are sent as `deleted = true`.
    - Record ids are made on the phone; on the server the key is `(business_id, id)`. Row level security lets each user reach only their own shop (tested on Postgres in `supabase/migrations/0001_bizbuddy.sql`'s rules).
    - The sample shop is never sent. It can't be opened while signed in, and "Delete everything" is hidden while signed in (log out instead). Logging in refuses to replace books that aren't in an account. Logging out removes the books from the phone and warns if changes haven't reached the account.
-   - **Delete account** (Settings, while signed in) calls `DELETE /api/account`. The server takes the user from the access token and the phone from that login, never from the request. It clears the phone-only rows (`whatsapp_chats`, `whatsapp_thread`), then deletes the auth user. The shop, books, memory, reminders, and drafts cascade. The books are then removed from this phone. It cannot be undone.
+   - **Delete account** (Settings, while signed in) calls `DELETE /api/account`. The server takes the user from the access token and the phone from that login, never from the request. It deletes that shop's customers, sales, payments, expenses, memory, reminders, drafts, and check-ins, then the shop. It clears the phone-only rows (`whatsapp_chats`, `whatsapp_thread`) and the WhatsApp message ids that belong to that number. Then it deletes the auth user, which cascades anything left (including the welcome record). The books and the Tell BizBuddy chat are removed from this phone. It cannot be undone.
    - The UI never says "Backed up" until the server has confirmed (UX spec §28). Status shows in the sidebar and mobile header (`SyncBadge`).
    - Without `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`), accounts switch off and the app works on the phone only, as before.
    - **Setup:**
@@ -320,7 +320,7 @@ None of these IDs are secrets. The tokens and keys live only in `.env` (git-igno
 
 One account is kept on purpose: nworluegbe@gmail.com.
 
-The account for 0811 295 9740 (Jehobyte) was deleted on request on 1 Oct 2026, along with its shop, books, reminders, and WhatsApp chat rows. The account for 0811 295 9840 was deleted earlier. Both were removed by cascade.
+The account for 0811 295 9740 (Jehobyte) was deleted on request on 1 Oct 2026. A new account for that same number was created later that evening and is kept. The account for 0811 295 9840 was deleted earlier.
 
 **Meta / WhatsApp**
 

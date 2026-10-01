@@ -7,13 +7,14 @@ import { AUTO_SAVE_AFTER } from "@/features/tell/lib/autosave";
 import { getAutoSave, setAutoSave } from "@/features/tell/lib/client";
 import type { AutoSave } from "@/features/tell/lib/memory";
 import { syncLabel } from "@/features/shell/components/sync-badge";
+import { clearThread } from "@/features/tell/lib/talk";
 import { accountErrorMessage, createAccount, deleteAccount, logOut, MIN_PASSWORD, sendWhatsAppWelcome } from "@/shared/lib/account";
 import { WhatsAppOptIn } from "@/shared/ui/whatsapp-opt-in";
 import { formatDate } from "@/shared/lib/format";
 import { displayPhone, normalizePhone } from "@/shared/lib/phone";
 import { usePhoneField } from "@/shared/lib/use-phone-field";
 import { PhoneInput } from "@/shared/ui/phone-input";
-import { useSyncMeta } from "@/shared/lib/store";
+import { getSyncMeta, useSyncMeta } from "@/shared/lib/store";
 import { syncNow, useSyncStatus } from "@/shared/lib/sync-runner";
 import { showToast } from "@/shared/lib/toast";
 import type { BizData, Business } from "@/shared/lib/types";
@@ -113,8 +114,10 @@ function SignedIn({ phone }: { phone: string }) {
     if (deleteBusy.current) return;
     deleteBusy.current = true;
     setDeleteError(null);
+    const businessId = getSyncMeta()?.businessId ?? undefined;
     try {
       await deleteAccount();
+      clearThread(businessId);
       setDeleting(false);
       router.replace("/welcome");
     } catch (error) {
@@ -158,7 +161,7 @@ function SignedIn({ phone }: { phone: string }) {
         className="mt-1 block w-full rounded-xl bg-rose-50 px-4 py-3 text-left hover:bg-rose-100"
       >
         <span className="block text-sm font-medium text-rose-700">Delete account</span>
-        <span className="block text-xs text-rose-700/80">Remove this account, its backup, and the books on this phone.</span>
+        <span className="block text-xs text-rose-700/80">Remove this account and everything saved with it.</span>
       </button>
 
       <ConfirmDialog
@@ -190,7 +193,7 @@ function SignedIn({ phone }: { phone: string }) {
         error={deleteError}
       >
         <p>
-          This deletes the account for {displayPhone(phone)}, the shop&apos;s backup, and anything BizBuddy remembered from this number. The books are removed from this phone too. It can&apos;t be undone.
+          This deletes the account for {displayPhone(phone)} and everything saved with it: the shop, sales, payments, expenses, customers, reminders, and what BizBuddy remembered, including the WhatsApp chat. It is removed from this phone too. It can&apos;t be undone.
         </p>
         {waiting > 0 && <p>{waiting === 1 ? "1 change on this phone hasn't" : `${waiting} changes on this phone haven't`} been backed up. Those go too.</p>}
       </ConfirmDialog>

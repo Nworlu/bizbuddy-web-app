@@ -11,18 +11,23 @@ The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, o
 - **Tell BizBuddy**: type a note, and the AI (OpenAI) reads it into draft sales, expenses, and payments. See decision 22.
 - **WhatsApp**: the owner texts BizBuddy's number, gets back what was understood with Save / Cancel, and Save records it in their books. See decision 23.
 - **A WhatsApp welcome message** on first sign-up. See decision 24.
-- **Sale or expense?**, **auto-save**, **asking for missing details**, and **reminders**, on WhatsApp and in Tell BizBuddy. See decisions 25–27.
+- **Sale or expense?**, **auto-save**, **asking for missing details**, and **reminders**, on WhatsApp and in Tell BizBuddy. See decisions 25–31.
 - **A privacy policy and terms.**
 
 **What's happening now (30 Sep 2026):** WhatsApp is being tested live on **Meta's test number**. The app runs on the laptop (`next start -p 3600`) behind an **ngrok** tunnel, and Meta's webhook points at that tunnel. Tested so far:
 - The welcome message arrives on sign-up, using Meta's `hello_world` template.
 - A note sent on WhatsApp gets a draft reply with Save / Cancel.
 
-Just built, **not yet tried on a phone**:
+**Tested on the phone (30 Sep):** a reminder set on WhatsApp ("Remind me in 10 minutes to check the scheduler") was saved, sent by the Supabase scheduler, and delivered.
+
+Built, **not yet tried on a phone**:
 - A "typing…" indicator, and a faster reply (decision 23).
 - **Sale or expense?** When a person who isn't a customer yet "sent money for" something, BizBuddy asks. It also learns who is on the team (decision 25).
 - **Auto-save**, offered after 10 notes in a row saved without changes, with an Undo on every note it saves by itself (decision 26).
 - **Asking for missing details** (who bought it, what was sold, how much), and **reminders** about notes never saved or cancelled (decision 27).
+- **Reminders the owner sets** ("remind me Friday at 10am to collect from David"), sent on WhatsApp, and a choice of when to be reminded about unsaved notes (decision 28). Reminders due more than 24 hours after the owner's last message need the `bizbuddy_reminder` template.
+- **Check-ins** (7pm nudge, Sunday weekly summary) and **learning the business from screenshots, photos, a website, and social handles** (decisions 30–31). **The scheduler runs inside Supabase (pg_cron, migration 0009), and works.**
+- **The AI knows the owner and the business** (decision 29): name, shop, type, and a new "What does your business do?" field, sent with every note on WhatsApp and in Tell BizBuddy.
 
 The details are in **Current setup** below.
 
@@ -103,7 +108,9 @@ app/
   api/whatsapp/welcome/route.ts  POST: sends the signed-in owner the WhatsApp welcome template, once per account
   api/tell/learn/route.ts      POST: what the owner did with a draft (saved / corrected / cancelled / undone / auto); remembers it, counts toward auto-save
   api/tell/autosave/route.ts   GET / POST: the auto-save setting for the signed-in shop
-  api/whatsapp/remind/route.ts GET (scheduler, CRON_SECRET): one reminder per note left waiting on Save / Cancel
+  api/tell/knowledge/route.ts  GET / PATCH / POST: what BizBuddy knows (description, products, socials); read a picture or website; save
+  api/whatsapp/remind/route.ts GET (scheduler, CRON_SECRET): due reminders, and one reminder per note left waiting on Save / Cancel
+  api/reminders/route.ts       GET / POST / DELETE / PATCH: the signed-in owner's reminders and unsaved-note setting (phone from the login)
   (app)/settings/page.tsx      Settings: account (back up / status / log out), business details, record counts, sample shop, delete everything
   login/page.tsx               log in with phone + password
 
@@ -119,6 +126,8 @@ features/
   tell/                        Tell BizBuddy: screen, draft cards, lib/intents.ts (schema, toDraft), lib/memory.ts (what this shop has confirmed, its team, auto-save state), lib/autosave.ts (when to offer, what still asks, undo), lib/drafts.ts (check / describe / apply, MISSING questions), lib/client.ts, server/interpret.ts (OpenAI), server/memory.ts
   settings/                    settings screen, account section
   account/                     login screen
+  checkins/                    lib/checkins.ts (when due, evening text, weekly summary), server/store.ts (claims, owners who chat)
+  reminders/                   lib/when.ts (Lagos time ↔ UTC, dueFrom, formatWhen, snooze, the numbered list), lib/client.ts, server/store.ts (secret key), components/reminder-card.tsx
   whatsapp/                    lib/conversation.ts (one message, start to finish; everything outside comes in as Deps, so tests fake it), lib/person.ts (who the chat is with), lib/text.ts (replies, Save/Cancel words), server/meta.ts (signature check, send text/buttons/template, typing indicator), server/books.ts (Supabase with the secret key), server/who.ts
 
 shared/
@@ -237,6 +246,54 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
    - **Reminders in Tell BizBuddy:** a banner above the input, "⏰ You haven't saved or cancelled N earlier notes", with **Show me**.
    - `whatsapp_pending.drafts` (jsonb) now also carries marker entries: `either`, `undo`, and `meta` (`asking`, `remindedAt`). `getPending` / `setPending` in `features/whatsapp/server/books.ts` pack and unpack them.
 
+28. **Reminders the owner sets** (`features/reminders/`, migration **0006**: `reminders`, `whatsapp_chats`).
+   - **Reading them:** the reader has a `reminder` action with `text`, `date`, `time` (HH:MM, Lagos), and `in_minutes` ("in 2 hours"). The user message now carries the time in Lagos. The app works out the instant (`dueFrom()`):
+     - A day with no time means 9am.
+     - A time with no day means today, or tomorrow if that time has passed.
+     - No time at all: BizBuddy asks "When should I remind you?" and reads the short answer with the note, like a missing detail.
+     - Nigeria is UTC+1 all year, so the conversion is a fixed hour.
+   - **Setting them:** set straight away (the owner's choice), confirmed as "⏰ I'll remind you *Fri 2 Oct, 10:00am*: …" with **Cancel reminder**. In Tell BizBuddy the reminder card sets it, or asks for a day and time, with Cancel.
+   - **Managing them:**
+     - On WhatsApp: "my reminders" (numbered list), "cancel reminder 2".
+     - In Settings → Reminders: the list with Cancel, and the unsaved-note choice.
+     - The web goes through `/api/reminders`. It takes the phone number from the login and writes with the secret key, and the tables have no RLS policies, so no one can point a reminder at someone else's number.
+   - **Sending them:** `/api/whatsapp/remind` (same scheduler) claims each due reminder, so it goes out once.
+     - If the owner messaged BizBuddy in the last 24 hours (`whatsapp_chats.last_inbound_at`, recorded on every message), it's a normal message with **Done / In 1 hour / Tomorrow**.
+     - Otherwise it must be the approved template `WHATSAPP_REMINDER_TEMPLATE` (default `bizbuddy_reminder`), whose two quick-reply payloads are filled per send.
+     - A failed send is retried on the next run, for up to 12 hours.
+   - **The template to submit in Meta** (Utility, English): name `bizbuddy_reminder`, body `⏰ Reminder: {{1}}`, two quick-reply buttons: `Done` and `Remind me tomorrow`. Sample for {{1}}: "Collect money from David". It's needed on the test WABA now, and again on the real one.
+   - **Unsaved-note reminders:** each shop picks after 30 minutes (the default), after 2 hours, or never. It's stored as `unsavedReminder` in shop memory. Set it in Settings, or on WhatsApp ("remind me about unsaved notes after 2 hours", "stop reminding me"). Those phrases are matched before the AI, and the website's reader points them to Settings.
+
+29. **The AI knows who it works for** (`features/tell/lib/profile.ts`, migration **0007** `businesses.about`).
+   - `shopProfile()` says: the shop, its type, who runs it, and, in the owner's words, what the business is about. For example: "The shop is Jay Gadgets, an electronics business run by Jehoshaphat Egbe. In the owner's words, the business is about: “We sell fairly used laptops and iPhones in Ikeja, and fix screens”".
+   - It goes with every note, alongside what shop memory has learned (products, team, lessons). On WhatsApp it's added to `chatWith`. On the website, `/api/tell` loads the business with the owner's token (`memoryFor()` returns `profile`). Before this, the website sent nothing about the owner, and WhatsApp sent only the name and shop.
+   - The reader's rule: use the profile to name a vague item clearly and to tell a sale from an expense, but never invent a brand, model, amount, or customer. Measured: "Sold one 2017 to David for 450k" gives "2017" without the profile and "2017 laptop" with it. "Did one screen for Musa 25k" gives "screen repair". The 15-note regression is unchanged.
+   - **"What does your business do?"** is optional. It's in onboarding (the business step) and in Settings → Business. It's tidied and capped at 300 characters, stored as `Business.about`, and synced as `businesses.about`.
+   - **Safe before migration 0007:** `about` is only sent in the sync once it's filled in, and the business is read with `select("*")` in both the app and the WhatsApp server. Shops keep syncing whether or not the column exists. Once someone fills it in, the sync needs 0007.
+
+30. **Check-ins** (`features/checkins/`, migration **0008** `check_ins`). BizBuddy writes first, only to owners who have messaged it at least once (`whatsapp_chats`).
+   - **Evening:** from 19:00 to 21:30 Lagos time, on a day with nothing recorded: "Good evening Jehoshaphat 👋 How was business today?…"
+   - **Weekly:** on Sunday in the same window, the week so far (Monday to today) from `periodSummary()`: sales, collected, spent, and who owes (top 3). It replaces that evening's nudge.
+   - **Once only:** each check-in is claimed per shop, kind, and Lagos date (primary key), so it goes out once. A failed send releases the claim.
+   - **Outside the 24-hour window** they use templates: `WHATSAPP_CHECKIN_TEMPLATE` (default `bizbuddy_checkin`, {{1}} first name, {{2}} shop) and `WHATSAPP_WEEKLY_TEMPLATE` (default `bizbuddy_weekly`, {{1}} shop, {{2}} sales, {{3}} collected, {{4}} spent, {{5}} owed). **Both still need submitting.** Meta may class them as Marketing rather than Utility.
+   - **On by default.** Settings → Reminders has a switch for each. On WhatsApp: "stop check-ins" / "start check-ins". Stored as `checkIns` in shop memory.
+31. **Learning the business from what the owner shows** (`features/tell/lib/knowledge.ts`, `features/tell/server/learn-business.ts`).
+   - **Sources:**
+     - A **screenshot or photo** (Instagram or TikTok page, WhatsApp catalogue, price list), sent on WhatsApp or uploaded in Settings → What BizBuddy knows (up to 3, shrunk to 1600px JPEG in the browser).
+     - A **website link**, sent alone on WhatsApp or pasted in Settings.
+     - The AI (OpenAI, same model, strict schema) returns a description and products with prices, and BizBuddy shows them with **Save / Cancel**. Nothing is kept until Save.
+   - **Social links:** instagram.com, tiktok.com, facebook.com, and x.com links are **not read**; those sites block it, and an official Instagram connection needs Meta app review. The handle is saved (`socials`) and BizBuddy asks for screenshots instead. Handles can also be typed in Settings.
+   - **Kept in shop memory:** `description`, `catalog` (up to 40, newest first), and `socials`. The AI gets the description, **product names only (never prices**, so a listed price can't become an amount the note didn't say), and the handles.
+   - **Link safety:** only http(s) on ports 80/443, and no private, loopback, link-local, or metadata addresses (checked again on each redirect). 8-second timeout, 1 MB, HTML or text only. Tested: 127.0.0.1 and 169.254.169.254 are refused. One gap: the check resolves DNS separately from `fetch`, so a DNS-rebinding host could still slip past. Pin the resolved IP if this becomes a concern.
+   - **Limits:** reading is limited to 20 per shop per 10 minutes per server instance. Pictures are capped at 5 MB, and the WhatsApp media size is checked before downloading.
+   - **Measured:** a price-list image gave all 4 products with the right prices and a correct description. example.com gave nothing to learn.
+32. **The scheduler runs in Supabase** (migration **0009**; tested 30 Sep: a reminder set on WhatsApp was sent by the scheduled run and delivered): `pg_cron` calls `public.bizbuddy_run_reminders()` every minute (it was every 5 minutes, but a reminder could then arrive up to 5 minutes late), which uses `pg_net` to call `GET <bizbuddy_remind_url>` with `Authorization: Bearer <bizbuddy_cron_secret>`. Both values live in **Supabase Vault**, never in the migration.
+   - **Setup, after running 0009**, in the SQL editor (the secret is `CRON_SECRET` from `.env`):
+     - `select vault.create_secret('https://<app>/api/whatsapp/remind', 'bizbuddy_remind_url');`
+     - `select vault.create_secret('<CRON_SECRET>', 'bizbuddy_cron_secret');`
+   - **When the address changes** (new ngrok, or Vercel): `select vault.update_secret((select id from vault.secrets where name = 'bizbuddy_remind_url'), '<new url>');`
+   - **Checking it:** `cron.job_run_details` (runs) and `net._http_response` (the app's answers). To stop it: `select cron.unschedule('bizbuddy-reminders');`
+
 ## Styling rules
 
 - The color tokens are in `app/globals.css` (`brand-*`, `surface`, `ink`, `ink-muted`).
@@ -250,7 +307,9 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 None of these IDs are secrets. The tokens and keys live only in `.env` (git-ignored); `.env.example` lists every name.
 
 **Supabase**
-- Migrations 0001–0005 have **all been run** on the project.
+- Migrations **0001–0009 have all been run** (checked 30 Sep: `reminders`, `whatsapp_chats`, `check_ins`, and `businesses.about` exist).
+- **Vault secrets are set:** `bizbuddy_remind_url` (the current ngrok address + `/api/whatsapp/remind`) and `bizbuddy_cron_secret`. **When ngrok restarts, update `bizbuddy_remind_url`** (decision 32) as well as Meta's webhook.
+- **The scheduler works:** pg_cron calls `/api/whatsapp/remind` and the app answers 200. Supabase was set up on the 5-minute schedule. The migration file now says every minute; to switch the live job, run `select cron.schedule('bizbuddy-reminders', '* * * * *', $$select public.bizbuddy_run_reminders()$$);` (it replaces the job).
 - "Confirm email" is off.
 
 **Accounts**
@@ -272,7 +331,7 @@ The account for 0811 295 9840 was deleted on request. Its rows were removed by c
 | Access token | Permanent System User token (System User "bizbuddy-server"), in `WHATSAPP_ACCESS_TOKEN` |
 | Test "To" list | The owner's numbers, added in WhatsApp → API Setup (max 5) |
 | Webhook | `https://<current ngrok>/api/whatsapp`, set at app level, field `messages` |
-| Templates | `bizbuddy_welcome` is pending on the test WABA. `.env` has `WHATSAPP_WELCOME_TEMPLATE=hello_world` for now. |
+| Templates | `bizbuddy_welcome` is pending on the test WABA. `.env` has `WHATSAPP_WELCOME_TEMPLATE=hello_world` for now. **Being submitted:** `bizbuddy_reminder`, `bizbuddy_checkin`, and `bizbuddy_weekly`; exact wording in **Templates to submit** below. |
 
 **Laptop**
 - `next start -p 3600` with the latest build (typing indicator, speed, and the "for" rule).
@@ -280,18 +339,20 @@ The account for 0811 295 9840 was deleted on request. Its rows were removed by c
 - `NEXT_PUBLIC_APP_URL` is not set yet. Unknown numbers get the sign-up message without a link until it is.
 
 **Code**
-- 240 tests pass.
-- **Not committed yet:**
-  - the welcome
-  - the typing indicator and speed changes
-  - the "for" rule
-  - migration 0005
-  - sale-or-expense and the team
-  - auto-save
-  - asking and reminders
-  - this handoff
+- 265 tests pass.
+- Everything up to sale-or-expense, auto-save, asking, and unsaved-note reminders is committed (`94a874d`).
 - `CRON_SECRET` is in `.env`. No scheduler calls `/api/whatsapp/remind` yet.
+- **Not committed yet:** reminders, the shop profile, check-ins, learning the business, and the scheduler (decisions 28–32).
 - The shop's memory still holds the "Jehoshaphat sent 85k for laptop…" = expense lesson from testing. It no longer steers new notes: `settleDirection()` and the Mordecai sales you saved since override it. It drops off after 8 newer notes.
+
+**Templates to submit** (WhatsApp Manager → Message templates, on the test account now and again on the real one; language **English `en`**, not English (US); variable type Number; no header or footer). They're only used when the owner hasn't written to BizBuddy for 24 hours; inside that window the app sends normal messages. Names and blank order must match the code.
+
+| Name | Category | Body | Samples | Buttons |
+|---|---|---|---|---|
+| `bizbuddy_reminder` | Utility | `⏰ Reminder: {{1}}` | Collect money from David | Quick replies, in order: `Done`, `Remind me tomorrow` |
+| `bizbuddy_checkin` | Utility (Meta may make it Marketing) | `Hi {{1}}, how was business at {{2}} today? Tell me anything you sold or spent, and I'll record it.` | Jehoshaphat · Jay Gadgets | none |
+| `bizbuddy_weekly` | Utility (Meta may make it Marketing) | `Your week at {{1}}: sales {{2}}, collected {{3}}, spent {{4}}. Customers owe you {{5}} in total. Reply with anything I missed.` | Jay Gadgets · ₦450,000 · ₦300,000 · ₦45,000 · ₦150,000 | none |
+| `bizbuddy_welcome` | Utility | (submitted earlier; pending) | first name · shop | Quick reply `Hi BizBuddy` |
 
 ## Next steps
 
@@ -302,21 +363,23 @@ The account for 0811 295 9840 was deleted on request. Its rows were removed by c
    - A question while a note is waiting: it should remind you.
    - Tell BizBuddy: the missing-detail hint, the reminder banner, and the auto-save switch in Settings.
 2. **Commit and push** the uncommitted work listed above.
-3. **Set up the reminder scheduler.** Call `GET https://<app>/api/whatsapp/remind` every 5 minutes with header `Authorization: Bearer <CRON_SECRET>` (cron-job.org, or Vercel Cron on Pro). Put `CRON_SECRET` in Vercel too.
-4. **When `bizbuddy_welcome` is approved:** set `WHATSAPP_WELCOME_TEMPLATE=bizbuddy_welcome` in `.env`, or delete the line, since that is the default. Then restart and sign up a fresh account to check it.
-5. **Deploy to Vercel.**
-   - Put in every variable from `.env`, and set `NEXT_PUBLIC_APP_URL`.
+3. **Switch the scheduler to every minute:** run the `cron.schedule` line under Current setup → Supabase.
+4. **Submit the templates** in the table above. If Meta rejects one, adjust the wording and keep the same name and blanks.
+5. **When `bizbuddy_welcome` is approved:** set `WHATSAPP_WELCOME_TEMPLATE=bizbuddy_welcome` in `.env`, or delete the line, since that is the default. Then restart and sign up a fresh account to check it.
+6. **Deploy to Vercel.**
+   - Put in every variable from `.env` (including `CRON_SECRET`), and set `NEXT_PUBLIC_APP_URL`.
+   - Point the scheduler at Vercel: `vault.update_secret` on `bizbuddy_remind_url` (decision 32).
    - Pick the region nearest the Supabase project.
    - Move Meta's webhook from ngrok to `https://<vercel app>/api/whatsapp`.
-6. **Move to the real number** (+254 706 931455).
+7. **Move to the real number** (+254 706 931455).
    - Get its WABA ID, then `POST /<WABA_ID>/subscribed_apps`.
    - Create `bizbuddy_welcome` again on that WABA and wait for approval.
    - Set `WHATSAPP_PHONE_NUMBER_ID=1361836510344909`.
    - `hello_world` will not work there.
    - The "To" list limit goes away, so any owner can sign up and get messages.
-7. **Business verification** in Meta Business Manager, to lift the messaging limits and show BizBuddy's name.
-8. **Put it in front of real shop owners** (`BIZBUDDY_PLAN.md` §38). Give it to a few Nigerian shop owners, watch them record a real day in the app and on WhatsApp, and write down every problem. Let that decide what comes next.
-9. **Later:**
+8. **Business verification** in Meta Business Manager, to lift the messaging limits and show BizBuddy's name.
+9. **Put it in front of real shop owners** (`BIZBUDDY_PLAN.md` §38). Give it to a few Nigerian shop owners, watch them record a real day in the app and on WhatsApp, and write down every problem. Let that decide what comes next.
+10. **Later:**
    - Voice notes on WhatsApp (they get "text only" today).
    - Password reset.
    - A way to change the account's phone number.

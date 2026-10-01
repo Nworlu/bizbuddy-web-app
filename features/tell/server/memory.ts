@@ -4,6 +4,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { offerDue, reviewed, withAutoSave, type Review } from "../lib/autosave";
+import { shopProfile } from "../lib/profile";
 import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, confirmedDraft, type AutoSave, type ShopMemory } from "../lib/memory";
 
 function db(token: string) {
@@ -13,14 +14,19 @@ function db(token: string) {
   return createClient(url, key, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-/** What to send with the next note, and whether to save it without asking. Empty when there's nothing yet. */
-export async function memoryFor(token: string): Promise<{ prompt: string | null; autoSave: AutoSave }> {
+/**
+ * What to send with the next note: who the owner and shop are (profile), what this shop has taught
+ * BizBuddy (prompt), and whether to save without asking. Parts are null when there's nothing yet.
+ */
+export async function memoryFor(token: string): Promise<{ profile: string | null; prompt: string | null; autoSave: AutoSave }> {
   const client = db(token);
-  if (!client) return { prompt: null, autoSave: "off" };
-  const { data, error } = await client.from("shop_memory").select("memory").maybeSingle();
-  if (error || !data) return { prompt: null, autoSave: "off" };
+  if (!client) return { profile: null, prompt: null, autoSave: "off" };
+  // Row level security limits both to the owner's own shop.
+  const [{ data: shop }, { data, error }] = await Promise.all([client.from("businesses").select("*").maybeSingle(), client.from("shop_memory").select("memory").maybeSingle()]);
+  const profile = shop ? shopProfile({ name: shop.name, ownerName: shop.owner_name, type: shop.type, about: shop.about }) : null;
+  if (error || !data) return { profile, prompt: null, autoSave: "off" };
   const memory = parseMemory(data.memory);
-  return { prompt: memoryForPrompt(memory), autoSave: memory.autoSave };
+  return { profile, prompt: memoryForPrompt(memory), autoSave: memory.autoSave };
 }
 
 /** Loads this owner's memory, lets `change` update it, and saves it if it changed. Null when that isn't possible. */

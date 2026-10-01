@@ -51,7 +51,9 @@ export type EitherAction = {
   method: PaymentMethod | null;
   date: LocalDate | null;
 };
-export type Action = SaleAction | ExpenseAction | PaymentAction | QuestionAction | UnclearAction | EitherAction;
+/** "Remind me Friday at 10 to collect from David." Times are Lagos time; the app works out the instant. */
+export type ReminderAction = { kind: "reminder"; text: string; date: LocalDate | null; time: string | null; in_minutes: number | null };
+export type Action = SaleAction | ExpenseAction | PaymentAction | QuestionAction | UnclearAction | EitherAction | ReminderAction;
 
 export interface Interpretation {
   actions: Action[];
@@ -98,6 +100,13 @@ export const INTERPRETATION_SCHEMA = object({
           period: { type: "string", enum: [...QUESTION_PERIODS] },
         }),
         object({ kind: { type: "string", enum: ["unclear"] }, reply: { type: "string" } }),
+        object({
+          kind: { type: "string", enum: ["reminder"] },
+          text: { type: "string", description: "What to remind them, short, e.g. \"Collect money from David\"." },
+          date,
+          time: nullable({ type: "string", description: "HH:MM, 24-hour, Lagos time." }),
+          in_minutes: nullable({ type: "integer", description: "For \"in 2 hours\" / \"in 30 minutes\": minutes from now." }),
+        }),
         object({
           kind: { type: "string", enum: ["either"] },
           person: { type: "string" },
@@ -235,6 +244,6 @@ export function settleDirection(actions: Action[], note: string, customers: stri
 export function parseInterpretation(text: string): Interpretation {
   const value = JSON.parse(text) as Interpretation;
   if (!value || !Array.isArray(value.actions)) throw new Error("Unexpected interpretation");
-  const kinds = new Set(["sale", "expense", "payment", "question", "unclear", "either"]);
+  const kinds = new Set(["sale", "expense", "payment", "question", "unclear", "either", "reminder"]);
   return { actions: value.actions.filter((a) => a && kinds.has(a.kind)).slice(0, 10) };
 }

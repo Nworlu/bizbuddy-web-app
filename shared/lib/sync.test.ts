@@ -314,3 +314,14 @@ describe("never losing books", () => {
     expect(ada.on((s) => s.getSyncMeta())).toBeNull();
   });
 });
+
+describe("what the business is about", () => {
+  it("is only sent once filled in, so shops sync before migration 0007 has run", async () => {
+    const { businessToRemote, businessFromRemote } = await import("./sync");
+    const shop = { id: "b1", name: "Jay Gadgets", ownerName: "Jay", phone: "", type: "Electronics" as const, createdAt: "2026-09-30T10:00:00.000Z" };
+    expect(businessToRemote(shop)).not.toHaveProperty("about");
+    expect(businessToRemote({ ...shop, about: " Used laptops " }).about).toBe("Used laptops");
+    expect(businessFromRemote({ ...businessToRemote(shop), about: "Used laptops" }).about).toBe("Used laptops");
+    expect(businessFromRemote(businessToRemote(shop))).not.toHaveProperty("about");
+  });
+});

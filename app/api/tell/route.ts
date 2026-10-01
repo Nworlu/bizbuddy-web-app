@@ -10,6 +10,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { interpret, TellBusyError, TellRefusedError, tellProvider } from "@/features/tell/server/interpret";
 import { memoryFor } from "@/features/tell/server/memory";
+import { lagosClock } from "@/features/reminders/lib/when";
 
 const MAX_MESSAGE = 600;
 const MAX_CUSTOMERS = 300;
@@ -66,8 +67,9 @@ export async function POST(request: Request) {
   if (!today) return reply(400, "Bad request.");
 
   try {
-    const { prompt, autoSave } = await memoryFor(token);
-    const result = await interpret({ message, today, weekday, customers, memory: prompt });
+    const { profile, prompt, autoSave } = await memoryFor(token);
+    const chatWith = profile ? `The owner is writing in the BizBuddy app. ${profile}` : null;
+    const result = await interpret({ message, today, weekday, time: lagosClock(new Date()).time, customers, chatWith, memory: prompt });
     // With auto-save on, the app saves drafts that are safe to (features/tell/lib/autosave.ts) without asking.
     return Response.json({ ...result, autoSave: autoSave === "on" });
   } catch (error) {

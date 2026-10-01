@@ -20,6 +20,7 @@ function world() {
   const sent: { to: string; body: string; buttons: string[] }[] = [];
   const asked: TellInput[] = [];
   const typing: string[] = [];
+  let reminders: { id: string; text: string; dueAt: string; status: "open" | "done" | "cancelled" }[] = [];
   let script: Action[] | Error = [];
 
   const deps: Deps = {
@@ -45,6 +46,35 @@ function world() {
     },
     isBusy: (error) => error === BUSY,
     send: async (to, body, buttons = []) => void sent.push({ to, body, buttons: buttons.map((b) => b.title) }),
+    reminders: {
+      add: async (_b, _p, text, due) => {
+        const r = { id: `r${reminders.length + 1}`, text, dueAt: due.toISOString(), status: "open" as const };
+        reminders.push(r);
+        return { id: r.id, text, dueAt: r.dueAt };
+      },
+      upcoming: async () => reminders.filter((r) => r.status === "open").sort((a, b) => a.dueAt.localeCompare(b.dueAt)).map(({ id, text, dueAt }) => ({ id, text, dueAt })),
+      cancel: async (_b, id) => {
+        const r = reminders.find((x) => x.id === id && x.status === "open");
+        if (!r) return null;
+        r.status = "cancelled";
+        return r.text;
+      },
+      settle: async (_b, id, next) => {
+        const r = reminders.find((x) => x.id === id && x.status !== "cancelled");
+        if (!r) return null;
+        if ("done" in next) r.status = "done";
+        else r.dueAt = next.due.toISOString();
+        return r.text;
+      },
+    },
+    learn: {
+      fromImage: async () => ({ description: "Sells used laptops in Ikeja.", products: [{ name: "MacBook Pro 2017", price: 450000 }, { name: "HP EliteBook", price: null }], source: "your picture" }),
+      fromWebsite: async (url) => {
+        if (url.includes("broken")) throw new Error("not a page");
+        return { description: null, products: [], source: "example.com" };
+      },
+      problem: (error) => (error instanceof Error && error.message === "not a page" ? "That link isn't a web page I can read." : null),
+    },
     appUrl: "https://bizbuddy.example",
     now: () => new Date(2026, 8, 30, 12),
   };
@@ -58,6 +88,8 @@ function world() {
     sent,
     asked,
     typing,
+    reminders: () => reminders,
+    clearReminders: () => void (reminders = []),
     last: () => sent[sent.length - 1],
     script: (next: Action[] | Error) => void (script = next),
     say: (text: string, from = OWNER) => handleMessage({ id: `m${++n}`, from, text }, deps),
@@ -350,6 +382,115 @@ describe("reminders", () => {
     expect(reminder?.body).toContain("*Sale* · David Okafor · Cap");
     expect(reminder?.buttons.map((b) => b.title)).toEqual(["Save", "Cancel"]);
     expect(reminderFor({ businessId: "shop-1", note: "x", drafts: [], asking: "Who bought it?" }, w.books())).toBeNull();
+  });
+});
+
+describe("reminders the owner sets", () => {
+  const remind = (over: Partial<Extract<Action, { kind: "reminder" }>> = {}): Action => ({ kind: "reminder", text: "Collect money from David", date: "2026-10-02", time: "10:00", in_minutes: null, ...over });
+
+  it("sets it straight away, says when in Lagos time, and offers Cancel", async () => {
+    const w = world();
+    w.script([remind()]);
+    await w.say("Remind me Friday at 10am to collect money from David");
+    expect(w.last().body).toBe("⏰ I'll remind you *Fri 2 Oct, 10:00am*: Collect money from David");
+    expect(w.last().buttons).toEqual(["Cancel reminder"]);
+    expect(w.reminders()[0]).toMatchObject({ dueAt: "2026-10-02T09:00:00.000Z", status: "open" });
+    await w.tap("reminder-cancel:r1");
+    expect(w.last().body).toBe("Cancelled: Collect money from David");
+    expect(w.reminders()[0].status).toBe("cancelled");
+  });
+
+  it("gives the AI the time now, so \"in 2 hours\" can be placed", async () => {
+    const w = world();
+    w.script([remind({ date: null, time: null, in_minutes: 120 })]);
+    await w.say("Remind me in 2 hours to call the supplier");
+    expect(w.asked[0].time).toBe("12:00");
+    expect(w.reminders()[0].dueAt).toBe(new Date(2026, 8, 30, 14).toISOString());
+  });
+
+  it("asks when, if no time was said, and reads the answer with the note", async () => {
+    const w = world();
+    w.script([remind({ date: null, time: null })]);
+    await w.say("Remind me to collect money from David");
+    expect(w.last().body).toContain("When should I remind you?");
+    expect(w.reminders()).toHaveLength(0);
+    w.script([remind()]);
+    await w.say("Friday 10am");
+    expect(w.asked[1].message).toBe("Remind me to collect money from David\n(When should I remind you? Friday 10am)");
+    expect(w.reminders()).toHaveLength(1);
+  });
+
+  it("lists them, and cancels by number", async () => {
+    const w = world();
+    w.script([remind({ text: "Restock bags", date: "2026-10-05" }), remind()]);
+    await w.say("Remind me Friday to collect from David and Monday to restock bags");
+    await w.say("my reminders");
+    expect(w.last().body).toContain("1. Fri 2 Oct, 10:00am: Collect money from David");
+    expect(w.last().body).toContain("2. Mon 5 Oct, 10:00am: Restock bags");
+    await w.say("cancel reminder 2");
+    expect(w.last().body).toBe("Cancelled: Restock bags");
+    await w.say("cancel reminder 5");
+    expect(w.last().body).toContain("There's no reminder 5.");
+  });
+
+  it("Done and snooze from the reminder's buttons", async () => {
+    const w = world();
+    w.script([remind()]);
+    await w.say("Remind me Friday at 10am to collect money from David");
+    await w.tap("reminder-tomorrow:r1");
+    expect(w.last().body).toContain("I'll remind you again *Thu 1 Oct, 9:00am*");
+    await w.tap("reminder-done:r1");
+    expect(w.last().body).toBe("✓ Done: Collect money from David");
+  });
+
+  it("lets the owner choose when they're reminded about unsaved notes", async () => {
+    const w = world();
+    await w.say("Remind me about unsaved notes after 2 hours");
+    expect(w.memory().unsavedReminder).toBe("2h");
+    await w.say("stop reminding me");
+    expect(w.memory().unsavedReminder).toBe("never");
+    expect(w.last().body).toContain("Reminders you set yourself still come");
+  });
+});
+
+describe("learning the business", () => {
+  it("reads a picture, shows what it learned, and saves it only on Save", async () => {
+    const w = world();
+    await handleMessage({ id: "p1", from: OWNER, image: { id: "media-1" } }, w.deps);
+    expect(w.last().body).toContain("Here's what I learned from your picture:");
+    expect(w.last().body).toContain("• MacBook Pro 2017 (₦450,000)");
+    expect(w.last().buttons).toEqual(["Save", "Cancel"]);
+    expect(w.memory().catalog).toEqual([]);
+    await w.tap("save");
+    expect(w.memory().catalog.map((p) => p.name)).toEqual(["MacBook Pro 2017", "HP EliteBook"]);
+    expect(w.memory().description).toBe("Sells used laptops in Ikeja.");
+    expect(w.last().body).toContain("I know 2 of your products now");
+  });
+
+  it("saves an Instagram link as their handle, and asks for screenshots", async () => {
+    const w = world();
+    await w.say("https://www.instagram.com/jaygadgets_ng/");
+    expect(w.memory().socials).toEqual({ instagram: "jaygadgets_ng" });
+    expect(w.last().body).toContain("Send me *screenshots*");
+    expect(w.asked).toHaveLength(0);
+  });
+
+  it("says so when a website shows nothing about the business, or can't be read", async () => {
+    const w = world();
+    await w.say("example.com");
+    expect(w.last().body).toContain("I couldn't find anything about your business in that.");
+    await w.say("https://broken.example");
+    expect(w.last().body).toBe("That link isn't a web page I can read.");
+  });
+});
+
+describe("check-ins", () => {
+  it("stop check-ins and start check-ins switch both off and on", async () => {
+    const w = world();
+    await w.say("stop check-ins");
+    expect(w.memory().checkIns).toEqual({ evening: false, weekly: false });
+    await w.say("start check-ins");
+    expect(w.memory().checkIns).toEqual({ evening: true, weekly: true });
   });
 });
 

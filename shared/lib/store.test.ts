@@ -217,6 +217,15 @@ describe("business and starting over", () => {
     expect(() => store.updateBusiness({ name: "", ownerName: "Ada", phone: "", type: "Fashion" })).toThrow();
   });
 
+  it("keeps what the business is about, tidied, and clears it when emptied", () => {
+    store.updateBusiness({ name: "Ada's Fashion", ownerName: "Ada", phone: "", type: "Fashion", about: "  Ankara gowns\n and bags  " });
+    expect(read().business?.about).toBe("Ankara gowns and bags");
+    store.updateBusiness({ name: "Ada's Fashion", ownerName: "Ada", phone: "", type: "Fashion" });
+    expect(read().business?.about).toBe("Ankara gowns and bags"); // not given: unchanged
+    store.updateBusiness({ name: "Ada's Fashion", ownerName: "Ada", phone: "", type: "Fashion", about: " " });
+    expect(read().business).not.toHaveProperty("about");
+  });
+
   it("resetAll deletes everything", () => {
     store.resetAll();
     expect(read()).toEqual({ version: 1, business: null, customers: [], sales: [], payments: [], expenses: [] });

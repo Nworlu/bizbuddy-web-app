@@ -133,6 +133,7 @@ function Onboarding({ data }: { data: BizData }) {
   const [whatsappWelcome, setWhatsappWelcome] = useState(true);
   const [name, setName] = useState("");
   const [type, setType] = useState<BusinessType>("Fashion");
+  const [about, setAbout] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -178,7 +179,7 @@ function Onboarding({ data }: { data: BizData }) {
 
   function saveShop() {
     try {
-      createBusiness({ name: name.trim(), ownerName: ownerName.trim(), phone: phone.trim(), type });
+      createBusiness({ name: name.trim(), ownerName: ownerName.trim(), phone: phone.trim(), type, about });
       router.replace("/dashboard");
     } catch {
       setSaving(false);
@@ -304,6 +305,10 @@ function Onboarding({ data }: { data: BizData }) {
                   ))}
                 </div>
               </fieldset>
+              <Field id="business-about" label="What does your business do? (optional)">
+                <textarea id="business-about" value={about} onChange={(event) => setAbout(event.target.value)} maxLength={300} rows={2} placeholder="e.g. We sell fairly used laptops and phones in Ikeja" aria-describedby="business-about-hint" className={inputClass} />
+                <p id="business-about-hint" className="mt-1 text-xs text-ink-muted">BizBuddy uses this to understand your notes. Optional.</p>
+              </Field>
             </div>
             {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
             <button type="submit" disabled={saving} className="mt-6 w-full rounded-xl bg-brand-700 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60">

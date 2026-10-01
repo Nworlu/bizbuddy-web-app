@@ -23,6 +23,8 @@ export interface Incoming {
   text?: string;
   /** The id of a reply button they tapped. */
   buttonId?: string;
+  /** A picture they sent: Meta's media id (download with downloadMedia) and any caption. */
+  image?: { id: string; caption?: string };
   /** Anything else (voice note, image, sticker…), so we can say we only read text for now. */
   other?: string;
 }
@@ -34,6 +36,7 @@ type WebhookMessage = {
   text?: { body?: string };
   interactive?: { button_reply?: { id?: string } };
   button?: { payload?: string };
+  image?: { id?: string; caption?: string };
 };
 
 type WebhookValue = {
@@ -54,6 +57,7 @@ export function incomingMessages(payload: unknown): Incoming[] {
         if (m.type === "text" && m.text?.body) out.push({ id: m.id, from: m.from, profileName, text: m.text.body });
         else if (m.type === "interactive" && m.interactive?.button_reply?.id) out.push({ id: m.id, from: m.from, profileName, buttonId: m.interactive.button_reply.id });
         else if (m.type === "button" && m.button?.payload) out.push({ id: m.id, from: m.from, profileName, buttonId: m.button.payload });
+        else if (m.type === "image" && m.image?.id) out.push({ id: m.id, from: m.from, profileName, image: { id: m.image.id, ...(m.image.caption ? { caption: m.image.caption } : {}) } });
         else out.push({ id: m.id, from: m.from, profileName, other: m.type ?? "unknown" });
       }
     }
@@ -93,7 +97,11 @@ export async function sendWhatsApp(to: string, body: string, buttons: Button[] =
  * Sends an approved message template. WhatsApp only lets a business start a conversation this way:
  * free text is allowed only within 24 hours of the person's last message. `params` fill {{1}}, {{2}}…
  */
-export async function sendTemplate(to: string, name: string, params: string[], language = "en"): Promise<void> {
+/**
+ * Sends an approved template: the only kind of message allowed outside the 24 hours after the
+ * person's last message. `buttonPayloads` fill the template's quick-reply buttons, in order.
+ */
+export async function sendTemplate(to: string, name: string, params: string[], language = "en", buttonPayloads: string[] = []): Promise<void> {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) throw new Error("WhatsApp sending isn't set up");
@@ -108,7 +116,14 @@ export async function sendTemplate(to: string, name: string, params: string[], l
       template: {
         name,
         language: { code: language },
-        ...(params.length > 0 ? { components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text: text.slice(0, 60) })) }] } : {}),
+        ...(params.length > 0 || buttonPayloads.length > 0
+          ? {
+              components: [
+                ...(params.length > 0 ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text: text.slice(0, 200) })) }] : []),
+                ...buttonPayloads.map((payload, index) => ({ type: "button", sub_type: "quick_reply", index: String(index), parameters: [{ type: "payload", payload }] })),
+              ],
+            }
+          : {}),
       },
     }),
   });
@@ -131,3 +146,22 @@ export async function showTyping(messageId: string): Promise<void> {
   });
   if (!response.ok) throw new Error(`WhatsApp typing indicator failed (${response.status}): ${(await response.text()).slice(0, 200)}`);
 }
+
+/** Downloads a picture someone sent (Meta keeps it for a while behind the access token). Refuses anything over `maxBytes`. */
+export async function downloadMedia(mediaId: string, maxBytes: number): Promise<{ data: Buffer; mime: string }> {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!token) throw new Error("WhatsApp isn't set up");
+  const version = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+  const info = await fetch(`https://graph.facebook.com/${version}/${encodeURIComponent(mediaId)}`, { headers: { authorization: `Bearer ${token}` } });
+  if (!info.ok) throw new Error(`WhatsApp media lookup failed (${info.status})`);
+  const { url, mime_type: mime, file_size: size } = (await info.json()) as { url?: string; mime_type?: string; file_size?: number };
+  if (!url || !mime) throw new Error("WhatsApp media has no address");
+  if (size && size > maxBytes) throw new MediaTooBigError();
+  const file = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+  if (!file.ok) throw new Error(`WhatsApp media download failed (${file.status})`);
+  const data = Buffer.from(await file.arrayBuffer());
+  if (data.length > maxBytes) throw new MediaTooBigError();
+  return { data, mime };
+}
+
+export class MediaTooBigError extends Error {}

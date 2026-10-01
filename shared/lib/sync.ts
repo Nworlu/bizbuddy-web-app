@@ -77,12 +77,15 @@ export interface RemoteBusiness {
   owner_name: string;
   phone: string;
   type: string;
+  /** Migration 0007. Only sent once filled in, so shops sync before that migration has run. */
+  about?: string;
   created_at: string;
   updated_at?: string;
 }
 
 export function businessToRemote(b: Business & { id: string }): RemoteBusiness {
-  return { id: b.id, name: b.name, owner_name: b.ownerName, phone: b.phone ?? "", type: b.type, created_at: b.createdAt };
+  const about = b.about?.trim();
+  return { id: b.id, name: b.name, owner_name: b.ownerName, phone: b.phone ?? "", type: b.type, ...(about ? { about } : {}), created_at: b.createdAt };
 }
 
 /** The server writes timestamps as "…+00:00"; the phone uses toISOString() ("…Z"). Store the phone's form. */
@@ -92,11 +95,11 @@ function isoTime(value: unknown): string {
 }
 
 export function businessFromRemote(r: RemoteBusiness): Business {
-  return { id: r.id, name: r.name, ownerName: r.owner_name, phone: r.phone, type: r.type as BusinessType, createdAt: isoTime(r.created_at) };
+  return { id: r.id, name: r.name, ownerName: r.owner_name, phone: r.phone, type: r.type as BusinessType, ...(r.about ? { about: r.about } : {}), createdAt: isoTime(r.created_at) };
 }
 
 function sameBusiness(a: Business | null, b: Business): boolean {
-  return !!a && a.id === b.id && a.name === b.name && a.ownerName === b.ownerName && (a.phone ?? "") === (b.phone ?? "") && a.type === b.type;
+  return !!a && a.id === b.id && a.name === b.name && a.ownerName === b.ownerName && (a.phone ?? "") === (b.phone ?? "") && a.type === b.type && (a.about ?? "") === (b.about ?? "");
 }
 
 export function recordToRemote(table: Table, row: AnyRecord, businessId: string, deleted: boolean): RemoteRow {

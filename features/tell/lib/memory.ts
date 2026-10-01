@@ -5,6 +5,8 @@
 import { formatNaira } from "@/shared/lib/format";
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/shared/lib/types";
 import type { Draft } from "./intents";
+import { DEFAULT_CHECK_INS, type CheckIns } from "@/features/checkins/lib/checkins";
+import { knowledgeForPrompt, tidyLearned, tidySocials, type CatalogItem, type Socials } from "./knowledge";
 
 const LESSONS = 8;
 const PRODUCTS = 8;
@@ -27,12 +29,24 @@ export type ShopMemory = {
   streak: number;
   /** Saving without asking (lib/autosave.ts): never offered, offered, turned on, or turned down. */
   autoSave: AutoSave;
+  /** When to remind them about a note left without Save or Cancel on WhatsApp. */
+  unsavedReminder: UnsavedReminder;
+  /** Check-ins BizBuddy starts (features/checkins): the 7pm nudge and Sunday's summary. */
+  checkIns: CheckIns;
+  /** From their own page or price list (lib/knowledge.ts), confirmed by the owner. */
+  description: string;
+  catalog: CatalogItem[];
+  socials: Socials;
 };
 
 export type AutoSave = "off" | "offered" | "on" | "declined";
+export type UnsavedReminder = "30m" | "2h" | "never";
+export const UNSAVED_REMINDERS: readonly UnsavedReminder[] = ["30m", "2h", "never"];
+/** Minutes before the reminder, or null for never. */
+export const unsavedReminderMinutes = (choice: UnsavedReminder): number | null => (choice === "30m" ? 30 : choice === "2h" ? 120 : null);
 const AUTO_SAVE_STATES: readonly AutoSave[] = ["off", "offered", "on", "declined"];
 
-export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off" };
+export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off", unsavedReminder: "30m", checkIns: DEFAULT_CHECK_INS, description: "", catalog: [], socials: {} };
 
 function clip(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
@@ -138,8 +152,10 @@ function nextTeam(team: string[], draft: Draft): string[] {
 
 /** Text for the next note's user message. Null until this shop has confirmed something. */
 export function memoryForPrompt(memory: ShopMemory): string | null {
-  if (memory.lessons.length === 0 && memory.team.length === 0) return null;
+  const known = knowledgeForPrompt(memory);
+  if (memory.lessons.length === 0 && memory.team.length === 0 && known.length === 0) return null;
   const profile = [
+    ...known,
     memory.team.length > 0 ? `Their team (people who spend money for the shop, not customers): ${memory.team.join(", ")}.` : "",
     memory.products.length > 0 ? `They sell: ${memory.products.join(", ")}.` : "",
     memory.writesThousands ? "They write thousands as “85k” and millions as “1.2m”." : "",
@@ -176,5 +192,15 @@ export function parseMemory(value: unknown): ShopMemory {
     ? row.team.filter((item): item is string => typeof item === "string").map((item) => clip(item, TEXT_MAX)).filter(Boolean).slice(0, TEAM)
     : [];
   const streak = typeof row.streak === "number" && Number.isSafeInteger(row.streak) && row.streak > 0 ? row.streak : 0;
-  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off" };
+  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off", unsavedReminder: oneOf(row.unsavedReminder, UNSAVED_REMINDERS) ?? "30m", checkIns: parseCheckIns(row.checkIns), ...parseKnowledge(row) };
+}
+
+function parseKnowledge(row: Record<string, unknown>): Pick<ShopMemory, "description" | "catalog" | "socials"> {
+  const learned = tidyLearned({ description: row.description, products: row.catalog }, "");
+  return { description: learned.description ?? "", catalog: learned.products, socials: tidySocials(row.socials) };
+}
+
+function parseCheckIns(value: unknown): CheckIns {
+  const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return { evening: row.evening !== false, weekly: row.weekly !== false };
 }

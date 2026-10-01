@@ -33,7 +33,8 @@ function db(): SupabaseClient {
   return sb;
 }
 
-const BUSINESS_COLUMNS = "id, name, owner_name, phone, type, created_at, updated_at";
+// Every column, so a newer one (about, migration 0007) comes through once it exists and nothing breaks before.
+const BUSINESS_COLUMNS = "*";
 /** PostgREST returns at most this many rows per request by default, so pulls page through. */
 const PAGE = 1000;
 

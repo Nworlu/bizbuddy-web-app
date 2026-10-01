@@ -10,10 +10,12 @@ import { businessFromRemote, diff, recordFromRemote, recordToRemote, TABLES, typ
 import type { BizData } from "@/shared/lib/types";
 import type { Draft } from "@/features/tell/lib/intents";
 import type { Either, LastAutoSave, Pending } from "@/features/whatsapp/lib/conversation";
+import type { Learned } from "@/features/tell/lib/knowledge";
 import { EMPTY_MEMORY, parseMemory, type ShopMemory } from "@/features/tell/lib/memory";
 
 let client: SupabaseClient | undefined;
-function db(): SupabaseClient {
+/** The secret-key client. Only for server code that limits every query to one shop. */
+export function db(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) throw new Error("Supabase secret key isn't set up");
@@ -87,7 +89,7 @@ async function rowsOf(table: string, businessId: string): Promise<RemoteRow[]> {
 
 /** The shop's current books, as the app sees them. */
 export async function loadBooks(businessId: string): Promise<BizData> {
-  const { data: business, error } = await db().from("businesses").select("id, name, owner_name, phone, type, created_at").eq("id", businessId).single();
+  const { data: business, error } = await db().from("businesses").select("*").eq("id", businessId).single();
   if (error) throw error;
   const [customers, sales, payments, expenses] = await Promise.all(TABLES.map((t) => rowsOf(t, businessId)));
   return {
@@ -119,7 +121,8 @@ export async function saveChanges(businessId: string, before: BizData, after: Bi
 type StoredEither = Either & { kind: "either" };
 type StoredUndo = LastAutoSave & { kind: "undo" };
 type StoredMeta = { kind: "meta"; asking?: string; remindedAt?: string };
-type Stored = Draft | StoredEither | StoredUndo | StoredMeta;
+type StoredLearn = Learned & { kind: "learn" };
+type Stored = Draft | StoredEither | StoredUndo | StoredMeta | StoredLearn;
 
 function fromStored(row: { business_id: unknown; note: unknown; drafts: unknown }): Pending {
   const stored = (Array.isArray(row.drafts) ? row.drafts : []) as Stored[];
@@ -127,6 +130,7 @@ function fromStored(row: { business_id: unknown; note: unknown; drafts: unknown 
   const found = stored.find((item): item is StoredEither => item.kind === "either");
   const last = stored.find((item): item is StoredUndo => item.kind === "undo");
   const meta = stored.find((item): item is StoredMeta => item.kind === "meta");
+  const learn = stored.find((item): item is StoredLearn => item.kind === "learn");
   return {
     businessId: row.business_id as string,
     note: (row.note as string) ?? "",
@@ -135,6 +139,7 @@ function fromStored(row: { business_id: unknown; note: unknown; drafts: unknown 
     ...(last ? { undo: { sales: last.sales, expenses: last.expenses, text: last.text } } : {}),
     ...(meta?.asking ? { asking: meta.asking } : {}),
     ...(meta?.remindedAt ? { remindedAt: meta.remindedAt } : {}),
+    ...(learn ? { learn: { description: learn.description, products: learn.products, source: learn.source } } : {}),
   };
 }
 
@@ -144,6 +149,7 @@ function toStored(pending: Pending): Stored[] {
     ...(pending.either ? [{ kind: "either" as const, ...pending.either }] : []),
     ...(pending.undo ? [{ kind: "undo" as const, ...pending.undo }] : []),
     ...(pending.asking || pending.remindedAt ? [{ kind: "meta" as const, asking: pending.asking, remindedAt: pending.remindedAt }] : []),
+    ...(pending.learn ? [{ kind: "learn" as const, ...pending.learn }] : []),
   ];
 }
 
@@ -164,7 +170,7 @@ export async function setPending(phone: string, pending: Pending): Promise<void>
  * Notes waiting on a Save / Cancel (or sale-or-expense) for longer than `olderThanMs`, that haven't had
  * their reminder yet. Only within WhatsApp's 24-hour window, when a free text reminder may still be sent.
  */
-export async function pendingToRemind(olderThanMs: number): Promise<{ phone: string; pending: Pending }[]> {
+export async function pendingToRemind(olderThanMs: number): Promise<{ phone: string; pending: Pending; since: Date }[]> {
   const now = Date.now();
   const { data, error } = await db()
     .from("whatsapp_pending")
@@ -174,7 +180,7 @@ export async function pendingToRemind(olderThanMs: number): Promise<{ phone: str
     .limit(200);
   if (error) throw error;
   return (data ?? [])
-    .map((row) => ({ phone: row.phone as string, pending: fromStored(row) }))
+    .map((row) => ({ phone: row.phone as string, pending: fromStored(row), since: new Date(row.created_at as string) }))
     .filter(({ pending }) => !pending.remindedAt && (pending.drafts.length > 0 || pending.either));
 }
 

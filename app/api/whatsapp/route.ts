@@ -8,9 +8,11 @@
 import { after } from "next/server";
 import { handleMessage, type Deps } from "@/features/whatsapp/lib/conversation";
 import { clearPending, getMemory, getPending, loadBooks, markSeen, saveChanges, saveMemory, setAbout, setPending } from "@/features/whatsapp/server/books";
-import { incomingMessages, sendWhatsApp, showTyping, validSignature } from "@/features/whatsapp/server/meta";
+import { downloadMedia, incomingMessages, MediaTooBigError, sendWhatsApp, showTyping, validSignature } from "@/features/whatsapp/server/meta";
+import { IMAGE_MAX_BYTES, LearnError, learnFromImage, learnFromWebsite } from "@/features/tell/server/learn-business";
 import { whoIsChatting } from "@/features/whatsapp/server/who";
 import { interpret, TellBusyError } from "@/features/tell/server/interpret";
+import { addReminder, cancelReminder, noteInbound, settleReminder, upcomingReminders } from "@/features/reminders/server/store";
 
 // Room for the AI to read the note and for the reply to go out after the 200.
 export const maxDuration = 60;
@@ -38,6 +40,14 @@ const deps: Deps = {
   interpret,
   isBusy: (error) => error instanceof TellBusyError,
   send: sendWhatsApp,
+  learn: {
+    fromImage: async (image) => learnFromImage({ ...(await downloadMedia(image.id, IMAGE_MAX_BYTES)), caption: image.caption }),
+    fromWebsite: learnFromWebsite,
+    problem: (error) => (error instanceof LearnError ? error.message : error instanceof MediaTooBigError ? "That picture is too big. Send one under 5 MB." : null),
+  },
+  reminders: { add: addReminder, upcoming: upcomingReminders, cancel: cancelReminder, settle: settleReminder },
+  // Without migration 0006 this fails; replies still go out.
+  noteInbound: (phone) => noteInbound(phone).catch((error) => console.error("WhatsApp: couldn't note the chat time", error instanceof Error ? error.message : error)),
   showTyping: (messageId) =>
     showTyping(messageId).catch((error) => console.error("WhatsApp: typing indicator failed", error instanceof Error ? error.message : error)),
   appUrl: process.env.NEXT_PUBLIC_APP_URL,

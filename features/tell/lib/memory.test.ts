@@ -92,6 +92,11 @@ describe("parseMemory", () => {
       team: [],
       streak: 0,
       autoSave: "off",
+      unsavedReminder: "30m",
+      checkIns: { evening: true, weekly: true },
+      description: "",
+      catalog: [],
+      socials: {},
     });
   });
 

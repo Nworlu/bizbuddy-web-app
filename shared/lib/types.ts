@@ -17,6 +17,8 @@ export interface Business {
   /** Shop owner's phone. Older records saved before this field existed may omit it. */
   phone?: string;
   type: BusinessType;
+  /** What the business is about, in the owner's words. Sent to the AI so it knows the shop. */
+  about?: string;
   createdAt: string;
 }
 

@@ -9,16 +9,19 @@
 
 import { answerTopic } from "@/features/ask/lib/answer";
 import { applyDraft, checkDraft, describeDraft, MISSING_QUESTIONS } from "@/features/tell/lib/drafts";
-import { eitherDrafts, toDraft, type Draft, type EitherAction, type ExpenseDraft, type Interpretation, type SaleDraft } from "@/features/tell/lib/intents";
+import { eitherDrafts, toDraft, type Draft, type EitherAction, type ExpenseDraft, type Interpretation, type ReminderAction, type SaleDraft } from "@/features/tell/lib/intents";
 import { formatNaira } from "@/shared/lib/format";
 import { added, AUTO_SAVE_AFTER, needsAsking, offerDue, reviewed, undo, withAutoSave, type Undo } from "@/features/tell/lib/autosave";
-import { learn, memoryForPrompt, type ShopMemory } from "@/features/tell/lib/memory";
+import { shopProfile } from "@/features/tell/lib/profile";
+import { describeLearned, learnedAnything, mergeCatalog, onlyLink, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
+import { learn, memoryForPrompt, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
+import { dueFrom, formatWhen, lagosClock, reminderList, snoozed, type Reminder } from "@/features/reminders/lib/when";
 import { normalizePhone } from "@/shared/lib/phone";
 import type { BizData } from "@/shared/lib/types";
 import { chatHeading, chatPrompt, nextAbout, personalize, type ChatWith } from "./person";
-import { answerToText, AUTO_OFF, AUTO_ON, CANCEL, command, decision, HELP, lagosToday, notLinked, SAVE, SAVE_EXPENSE, SAVE_SALE, UNDO, type Choice } from "./text";
+import { answerToText, AUTO_OFF, AUTO_ON, CANCEL, command, decision, HELP, lagosToday, notLinked, reminderButtonId, reminderCommand, SAVE, SAVE_EXPENSE, SAVE_SALE, UNDO, type Choice, type ReminderCommand } from "./text";
 
-export type Incoming = { id: string; from: string; profileName?: string; text?: string; buttonId?: string; other?: string };
+export type Incoming = { id: string; from: string; profileName?: string; text?: string; buttonId?: string; image?: { id: string; caption?: string }; other?: string };
 export type Button = { id: string; title: string };
 /** Money a person sent that could be a customer paying or the team spending: the owner picks one. */
 export type Either = { person: string; sale: SaleDraft; expense: ExpenseDraft };
@@ -29,8 +32,16 @@ export type LastAutoSave = Undo & { text: string };
  * undo: what the last auto-save added. asking: a question about the note (e.g. "Who bought it?"),
  * whose short answer is added to the note and read again. remindedAt: when the one reminder went out.
  */
-export type Pending = { businessId: string; note: string; drafts: Draft[]; either?: Either; undo?: LastAutoSave; asking?: string; remindedAt?: string };
-export type TellInput = { message: string; today: string; weekday: string; customers: string[]; chatWith?: string | null; memory?: string | null };
+export type Pending = { businessId: string; note: string; drafts: Draft[]; either?: Either; undo?: LastAutoSave; asking?: string; remindedAt?: string; learn?: Learned };
+export type TellInput = { message: string; today: string; weekday: string; time?: string; customers: string[]; chatWith?: string | null; memory?: string | null };
+
+/** The owner's reminders (features/reminders/server/store.ts), each call limited to their shop. */
+export interface ReminderDeps {
+  add(businessId: string, phone: string, text: string, due: Date): Promise<Reminder>;
+  upcoming(businessId: string): Promise<Reminder[]>;
+  cancel(businessId: string, id: string): Promise<string | null>;
+  settle(businessId: string, id: string, next: { done: true } | { due: Date }): Promise<string | null>;
+}
 
 export interface Deps {
   markSeen(messageId: string): Promise<boolean>;
@@ -50,6 +61,16 @@ export interface Deps {
   interpret(input: TellInput): Promise<Interpretation>;
   isBusy(error: unknown): boolean;
   send(to: string, body: string, buttons?: Button[]): Promise<void>;
+  reminders: ReminderDeps;
+  /** Records that the owner just wrote (a reminder can then be a normal message for 24 hours). */
+  noteInbound?(phone: string): Promise<void>;
+  /** Reads a picture or website about the business (features/tell/server/learn-business.ts). */
+  learn?: {
+    fromImage(image: { id: string; caption?: string }): Promise<Learned>;
+    fromWebsite(url: string): Promise<Learned>;
+    /** Words for the owner when reading failed for a reason they can fix (too big, not a page), else null. */
+    problem(error: unknown): string | null;
+  };
   appUrl?: string;
   now?: () => Date;
 }
@@ -65,6 +86,7 @@ const EITHER_BUTTONS: Button[] = [
 ];
 const WHICH = "Which is it? Tap *Save as sale* or *Save as expense*.";
 const ANSWER_WORDS = 8;
+const WHEN = "When should I remind you? (e.g. tomorrow 9am, Friday at 4pm, in 2 hours)";
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 const clip = (text: string) => (text.length > 80 ? `${text.slice(0, 77)}…` : text).replace(/\s+/g, " ");
 
@@ -89,12 +111,17 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
 
   const { chat, books: found } = await deps.whoIsChatting(phone, message.profileName ?? null);
   if (chat.kind !== "owner") return deps.send(to, notLinked(deps.appUrl));
+  await deps.noteInbound?.(phone).catch(() => undefined);
 
   const { today, weekday } = lagosToday(deps.now?.() ?? new Date());
   const asked = command({ text: message.text, buttonId: message.buttonId });
   if (asked) return runCommand(asked, phone, to, chat, deps);
+  const aboutReminders = reminderCommand({ text: message.text, buttonId: message.buttonId });
+  if (aboutReminders) return runReminderCommand(aboutReminders, to, chat, deps);
   const choice = decision({ text: message.text, buttonId: message.buttonId });
   if (choice) return confirm(choice, phone, to, chat, today, deps);
+
+  if (message.image) return learnFrom(() => deps.learn!.fromImage(message.image!), phone, to, chat, deps);
 
   // Any other button (e.g. "Hi BizBuddy" on the welcome message) is a hello: greet and show how it works.
   if (message.buttonId) return deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
@@ -108,6 +135,20 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   const answering = pending?.asking && words(message.text) <= ANSWER_WORDS;
   const note = answering ? `${pending.note}\n(${pending.asking} ${message.text.trim()})` : message.text;
   if (pending?.asking) await deps.clearPending(phone);
+
+  // Just a link: their Instagram / TikTok / Facebook handle is saved; a website is read to learn the business.
+  const link = !answering ? onlyLink(message.text) : null;
+  if (link) {
+    const social = socialFromUrl(link);
+    if (social) {
+      await deps.saveMemory(chat.businessId, { ...memory, socials: { ...memory.socials, [social.platform]: social.handle } });
+      return deps.send(
+        to,
+        `Saved your ${social.platform === "x" ? "X" : social.platform[0].toUpperCase() + social.platform.slice(1)}: @${social.handle}.\n\nI can't open ${social.platform === "x" ? "X" : "social"} pages myself yet. Send me *screenshots* of your page, catalogue, or price list, and I'll learn what you sell from them.`,
+      );
+    }
+    return learnFrom(() => deps.learn!.fromWebsite(link), phone, to, chat, deps);
+  }
   // A note still waiting on Save / Cancel from before.
   const earlier = !answering && pending && (pending.drafts.length > 0 || pending.either) ? pending : null;
 
@@ -117,8 +158,9 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
       message: note.slice(0, 800),
       today,
       weekday,
+      time: lagosClock(deps.now?.() ?? new Date()).time,
       customers: books.customers.map((c) => c.name),
-      chatWith: chatPrompt(chat),
+      chatWith: [chatPrompt(chat), shopProfile(books.business)].filter(Boolean).join(" ") || null,
       memory: memoryForPrompt(memory),
     });
     actions = personalize(result.actions, chat);
@@ -133,8 +175,10 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   const answers: string[] = [];
   const drafts: Draft[] = [];
   let unsure: EitherAction | null = null;
+  const reminders: ReminderAction[] = [];
   for (const action of actions) {
-    if (action.kind === "question") answers.push(answerToText(answerTopic(action.topic, action.customer, action.period, books, deps.now?.())));
+    if (action.kind === "reminder") reminders.push(action);
+    else if (action.kind === "question") answers.push(answerToText(answerTopic(action.topic, action.customer, action.period, books, deps.now?.())));
     else if (action.kind === "unclear") answers.push(action.reply);
     else if (action.kind === "either") {
       if (unsure) answers.push(`Send the part about ${action.person} again on its own, and I'll ask about it.`);
@@ -143,6 +187,12 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   }
 
   if (answers.length > 0) await deps.send(to, answers.join("\n\n"));
+  const noTime = await setReminders(reminders, phone, to, chat, deps);
+  if (noTime && drafts.length === 0 && !unsure) {
+    // "Remind me to call David" with no time: ask when, and read the answer with this note.
+    await deps.setPending(phone, { businessId: chat.businessId, note, drafts: [], asking: "When should I remind you?" });
+    return deps.send(to, WHEN);
+  }
   // A new note to record replaces the one still waiting: say so, so it isn't lost silently.
   if (earlier && (unsure || drafts.length > 0)) await deps.send(to, `(Your earlier note wasn't saved: _${clip(earlier.note)}_. Send it again if you want it.)`);
   if (unsure) return askWhich(unsure, drafts, note, phone, to, chat, books, today, deps);
@@ -150,7 +200,7 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     return saveNow(drafts, note, phone, to, chat, books, memory, deps);
   }
   if (drafts.length === 0) {
-    if (answers.length === 0) await deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
+    if (answers.length === 0 && reminders.length === 0) await deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
     // Only a question: the earlier note is still waiting, so remind them with its buttons.
     const reminder = earlier && reminderFor(earlier, books);
     if (reminder) await deps.send(to, reminder.body, reminder.buttons);
@@ -236,6 +286,88 @@ export function reminderFor(pending: Pending, books: BizData): { body: string; b
     : { body: [intro, ...blocks, pending.drafts.length > 1 ? "Save these?" : "Save this?"].join("\n\n"), buttons: BUTTONS };
 }
 
+/** Reads a picture or website, and shows what it learned about the business with Save / Cancel. */
+async function learnFrom(read: () => Promise<Learned>, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, deps: Deps) {
+  if (!deps.learn) return deps.send(to, `I can only read text messages for now.\n\n${HELP}`);
+  let learned: Learned;
+  try {
+    learned = await read();
+  } catch (error) {
+    return deps.send(to, deps.learn.problem(error) ?? "Sorry, I couldn't read that just now. Try again in a moment.");
+  }
+  if (!learnedAnything(learned)) {
+    return deps.send(to, "I couldn't find anything about your business in that. I learn from screenshots of your Instagram or WhatsApp catalogue, photos of your price list, or your website.");
+  }
+  await deps.setPending(phone, { businessId: chat.businessId, note: `(${learned.source})`, drafts: [], learn: learned });
+  return deps.send(to, describeLearned(learned), BUTTONS);
+}
+
+/** Sets each reminder that says when, confirming it with a Cancel button. True if one had no time. */
+async function setReminders(reminders: ReminderAction[], phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, deps: Deps): Promise<boolean> {
+  const now = deps.now?.() ?? new Date();
+  let noTime = false;
+  for (const reminder of reminders) {
+    const due = dueFrom({ date: reminder.date, time: reminder.time, inMinutes: reminder.in_minutes }, now);
+    const text = reminder.text.trim();
+    if (!due || !text) {
+      noTime = true;
+      continue;
+    }
+    const saved = await deps.reminders.add(chat.businessId, phone, text, due);
+    await deps.send(to, `⏰ I'll remind you *${formatWhen(due, now)}*: ${saved.text}`, [{ id: reminderButtonId("cancel", saved.id), title: "Cancel reminder" }]);
+  }
+  return noTime;
+}
+
+const UNSAVED_WORDS: Record<UnsavedReminder, string> = {
+  "30m": "Okay. If you leave a note without Save or Cancel, I'll remind you after 30 minutes.",
+  "2h": "Okay. If you leave a note without Save or Cancel, I'll remind you after 2 hours.",
+  never: "Okay. I won't remind you about notes you didn't save or cancel. Reminders you set yourself still come; send _my reminders_ to see them.",
+};
+
+async function runReminderCommand(asked: ReminderCommand, to: string, chat: Extract<ChatWith, { kind: "owner" }>, deps: Deps) {
+  const now = deps.now?.() ?? new Date();
+  const { businessId } = chat;
+  switch (asked.kind) {
+    case "list":
+      return deps.send(to, reminderList(await deps.reminders.upcoming(businessId), now));
+    case "cancel-number": {
+      const target = (await deps.reminders.upcoming(businessId))[asked.number - 1];
+      if (!target) return deps.send(to, `There's no reminder ${asked.number}. Send _my reminders_ to see the list.`);
+      await deps.reminders.cancel(businessId, target.id);
+      return deps.send(to, `Cancelled: ${target.text}`);
+    }
+    case "check-ins": {
+      const memory = await deps.getMemory(businessId);
+      await deps.saveMemory(businessId, { ...memory, checkIns: { evening: asked.on, weekly: asked.on } });
+      return deps.send(
+        to,
+        asked.on
+          ? "Okay. I'll check in at 7pm on days with nothing recorded, and send your week's numbers on Sunday evening."
+          : "Okay, no more check-ins. Send _start check-ins_ any time to get them back.",
+      );
+    }
+    case "unsaved": {
+      const memory = await deps.getMemory(businessId);
+      await deps.saveMemory(businessId, { ...memory, unsavedReminder: asked.choice });
+      return deps.send(to, UNSAVED_WORDS[asked.choice]);
+    }
+    case "button": {
+      if (asked.action === "cancel") {
+        const text = await deps.reminders.cancel(businessId, asked.id);
+        return deps.send(to, text ? `Cancelled: ${text}` : "That reminder is already gone.");
+      }
+      if (asked.action === "done") {
+        const text = await deps.reminders.settle(businessId, asked.id, { done: true });
+        return deps.send(to, text ? `✓ Done: ${text}` : "That reminder is already gone.");
+      }
+      const due = snoozed(asked.action, now);
+      const text = await deps.reminders.settle(businessId, asked.id, { due });
+      return deps.send(to, text ? `⏰ Okay, I'll remind you again *${formatWhen(due, now)}*: ${text}` : "That reminder is already gone.");
+    }
+  }
+}
+
 /** Auto-save is on and every draft is safe to save: record it now, and keep what Undo needs. */
 async function saveNow(drafts: Draft[], note: string, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, before: BizData, memory: ShopMemory, deps: Deps) {
   let books = before;
@@ -276,7 +408,7 @@ async function runCommand(asked: typeof UNDO | typeof AUTO_ON | typeof AUTO_OFF,
 
 async function confirm(choice: Choice, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, today: string, deps: Deps) {
   const pending = await deps.getPending(phone);
-  const waiting = pending !== null && pending.businessId === chat.businessId && (pending.drafts.length > 0 || pending.either !== undefined);
+  const waiting = pending !== null && pending.businessId === chat.businessId && (pending.drafts.length > 0 || pending.either !== undefined || pending.learn !== undefined);
   if (!waiting) {
     if (pending && pending.businessId !== chat.businessId) await deps.clearPending(phone);
     return deps.send(to, choice === CANCEL ? "Okay." : `Nothing is waiting to be saved.\n\n${HELP}`);
@@ -287,6 +419,14 @@ async function confirm(choice: Choice, phone: string, to: string, chat: Extract<
     // BizBuddy read it wrong (or the owner changed their mind): the run of right answers starts again.
     if (!pending.either) await deps.saveMemory(chat.businessId, reviewed(memory, "cancelled")).catch(() => undefined);
     return deps.send(to, "Okay, I didn't save that.");
+  }
+  if (pending.learn) {
+    const memory = await deps.getMemory(chat.businessId);
+    const merged = mergeCatalog(memory.catalog, memory.description, pending.learn);
+    await deps.saveMemory(chat.businessId, { ...memory, ...merged });
+    await deps.clearPending(phone);
+    const count = pending.learn.products.length;
+    return deps.send(to, `✓ Saved. I'll use this to understand your notes${count > 0 ? `, and I know ${merged.catalog.length} of your products now` : ""}.`);
   }
   // A plain "yes" can't say which reading: ask again, and keep it waiting.
   if (pending.either && choice === SAVE) return deps.send(to, WHICH, EITHER_BUTTONS);

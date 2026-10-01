@@ -10,6 +10,9 @@ import { getBizData, useSyncMeta } from "@/shared/lib/store";
 import { accountsEnabled } from "@/shared/lib/supabase";
 import { AskIcon, ChevronRightIcon } from "@/shared/ui/icons";
 import { AutoSavedCard, DraftCard, saveDraftNow } from "../components/draft-card";
+import { ReminderCard } from "@/features/reminders/components/reminder-card";
+import { createReminder } from "@/features/reminders/lib/client";
+import { dueFrom, type Reminder } from "@/features/reminders/lib/when";
 import { AUTO_SAVE_AFTER, needsAsking, type Undo } from "../lib/autosave";
 import { eitherDrafts, toDraft, type Draft, type Interpretation } from "../lib/intents";
 import { canTell, setAutoSave, TellError, tellBizBuddy } from "../lib/client";
@@ -21,7 +24,8 @@ type Reply =
   | { kind: "answer"; answer: Answer }
   | { kind: "draft"; draft: Draft; counts?: boolean }
   | { kind: "auto"; text: string; href?: string; undo: Undo }
-  | { kind: "offer" };
+  | { kind: "offer" }
+  | { kind: "reminder"; text: string; saving: Promise<Reminder> | null };
 
 type Message = { id: number; text: string; replies: Reply[] };
 
@@ -54,6 +58,11 @@ function readReplies(result: Interpretation): Reply[] {
   return result.actions.flatMap((action): Reply[] => {
     if (action.kind === "question") return [{ kind: "answer", answer: answerTopic(action.topic, action.customer, action.period, getBizData()) }];
     if (action.kind === "unclear") return [{ kind: "text", text: action.reply }];
+    if (action.kind === "reminder") {
+      // Said when: set it now (once, here, not in a component effect). Otherwise the card asks when.
+      const due = dueFrom({ date: action.date, time: action.time, inMinutes: action.in_minutes }, new Date());
+      return [{ kind: "reminder", text: action.text, saving: due ? createReminder(action.text, due) : null }];
+    }
     if (action.kind === "either") {
       // The note doesn't say which way the money went: show both, and the owner saves the right one.
       const { sale, expense } = eitherDrafts(action, today());
@@ -181,6 +190,7 @@ export function TellPage() {
                 {reply.kind === "draft" && <DraftCard draft={reply.draft} data={data} note={message.text} counts={reply.counts} onOffer={() => offerAutoSave(message.id)} onSettled={() => settled(`${message.id}:${i}`)} />}
                 {reply.kind === "auto" && <AutoSavedCard done={{ text: reply.text, href: reply.href }} undo={reply.undo} note={message.text} />}
                 {reply.kind === "offer" && <AutoSaveOffer />}
+                {reply.kind === "reminder" && <ReminderCard text={reply.text} saving={reply.saving} />}
               </Bubble>
             ))}
           </div>

@@ -9,6 +9,8 @@ import { BUSINESS_TYPES, type BizData, type Business, type BusinessType } from "
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { AccountSection } from "../components/account-section";
+import { RemindersSection } from "../components/reminders-section";
+import { KnowledgeSection } from "../components/knowledge-section";
 
 export function SettingsPage() {
   const { data, business } = useBiz();
@@ -18,6 +20,8 @@ export function SettingsPage() {
     <div className="mx-auto max-w-lg space-y-5 px-4 py-6 md:px-8 md:py-8">
       <h1 className="text-2xl font-bold text-ink">Settings</h1>
       {accountsEnabled() && <AccountSection data={data} business={business} />}
+      {accountsEnabled() && signedIn && !data.demo && <RemindersSection />}
+      {accountsEnabled() && signedIn && !data.demo && <KnowledgeSection />}
       <BusinessSection business={business} />
       <DataSection data={data} signedIn={signedIn} />
       {/* Signed in, these would wipe the account's books: log out instead. */}
@@ -46,6 +50,7 @@ function BusinessSection({ business }: { business: Business }) {
   const [ownerName, setOwnerName] = useState(business.ownerName);
   const [phone, setPhone] = useState(business.phone ?? "");
   const [type, setType] = useState<BusinessType>(business.type);
+  const [about, setAbout] = useState(business.about ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function start() {
@@ -53,6 +58,7 @@ function BusinessSection({ business }: { business: Business }) {
     setOwnerName(business.ownerName);
     setPhone(business.phone ?? "");
     setType(business.type);
+    setAbout(business.about ?? "");
     setError(null);
     setEditing(true);
   }
@@ -63,7 +69,7 @@ function BusinessSection({ business }: { business: Business }) {
     if (!ownerName.trim()) return setError("Enter your name.");
     if (phone.trim() && phone.replace(/\D/g, "").length < 10) return setError("Enter a phone number like 08012345678, or leave it empty.");
     try {
-      updateBusiness({ name, ownerName, phone, type });
+      updateBusiness({ name, ownerName, phone, type, about });
       showToast("Business details saved.");
       setEditing(false);
     } catch {
@@ -79,6 +85,7 @@ function BusinessSection({ business }: { business: Business }) {
           <Row label="Your name" value={business.ownerName} />
           <Row label="Phone" value={business.phone || "Not added"} />
           <Row label="Type" value={business.type} />
+          <Row label="What it does" value={business.about || "Not added"} />
         </dl>
         <button type="button" onClick={start} className="mt-3 w-full rounded-xl bg-stone-100 py-2.5 text-sm font-medium text-ink hover:bg-stone-200">
           Edit details
@@ -110,6 +117,10 @@ function BusinessSection({ business }: { business: Business }) {
             ))}
           </div>
         </fieldset>
+        <Field id="settings-about" label="What does your business do?">
+          <textarea id="settings-about" value={about} onChange={(e) => setAbout(e.target.value)} maxLength={300} rows={3} placeholder="e.g. We sell fairly used laptops and phones in Ikeja" aria-describedby="settings-about-hint" className={inputClass} />
+          <p id="settings-about-hint" className="mt-1 text-xs text-ink-muted">BizBuddy uses this to understand your notes. Optional.</p>
+        </Field>
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
         <div className="flex gap-2">
           <button type="button" onClick={() => setEditing(false)} className="flex-1 rounded-xl bg-stone-100 py-3 text-sm font-medium text-ink hover:bg-stone-200">Cancel</button>

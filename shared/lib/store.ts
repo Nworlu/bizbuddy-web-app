@@ -190,20 +190,27 @@ export const syncIO: SyncIO = {
   },
 };
 
-export function createBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType }) {
+/** What the business is about, tidied and kept short (the server allows 300 characters). */
+const tidyAbout = (about: string | undefined) => (about ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+
+export function createBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType; about?: string }) {
   load();
-  const business = { id: crypto.randomUUID(), ...input, createdAt: new Date().toISOString() };
+  const about = tidyAbout(input.about);
+  const business = { id: crypto.randomUUID(), name: input.name, ownerName: input.ownerName, phone: input.phone, type: input.type, ...(about ? { about } : {}), createdAt: new Date().toISOString() };
   // An account without a shop yet (e.g. created on another phone) gets this one.
   if (meta && !meta.businessId) meta = { ...meta, businessId: business.id };
   commit({ ...state!, business });
 }
 
 /** Changes the shop's details. The records stay as they are. */
-export function updateBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType }) {
+export function updateBusiness(input: { name: string; ownerName: string; phone: string; type: BusinessType; about?: string }) {
   const data = getSnapshot();
   if (!data.business) throw new Error("No business to update");
   if (!input.name.trim() || !input.ownerName.trim()) throw new Error("Business and owner name are required");
-  commit({ ...data, business: { ...data.business, name: input.name.trim(), ownerName: input.ownerName.trim(), phone: input.phone.trim(), type: input.type } });
+  const about = input.about === undefined ? data.business.about : tidyAbout(input.about);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { about: _old, ...rest } = data.business;
+  commit({ ...data, business: { ...rest, name: input.name.trim(), ownerName: input.ownerName.trim(), phone: input.phone.trim(), type: input.type, ...(about ? { about } : {}) } });
 }
 
 /** Deletes the shop and every record from this browser. Callers must confirm first. Signed in, use unlinkPhone() (log out) instead. */

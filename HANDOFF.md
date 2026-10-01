@@ -328,8 +328,8 @@ The account for 0811 295 9740 (Jehobyte) was deleted on request on 1 Oct 2026. A
 |---|---|
 | App ("Bizbuddy") | `1484328866852913` |
 | Test WABA | `1104879972136785`. The Bizbuddy app is subscribed (`subscribed_apps`). |
-| Test phone number | +1 555-157-6196, phone number ID `1342636065599193`. **This is what `.env` uses now.** |
-| Real number | +254 706 931455, phone number ID `1361836510344909`. It is on the Cloud API, connected, TIER_250. **Its WABA ID is still needed** so the app can be subscribed to it. |
+| Test phone number | +1 555-157-6196, phone number ID `1342636065599193`. Only delivers to numbers on the API Setup "To" list. |
+| Real number | +254 706 931455, phone number ID `1361836510344909`. **This is what `.env` uses now**, so sends go out from BizBuddy. The same value has to be `WHATSAPP_PHONE_NUMBER_ID` on Vercel, then redeployed, or the live site still sends from whichever id is saved there. |
 | Access token | Permanent System User token (System User "bizbuddy-server"), in `WHATSAPP_ACCESS_TOKEN` |
 | Test "To" list | The owner's numbers, added in WhatsApp → API Setup (max 5) |
 | Webhook | `https://<current ngrok>/api/whatsapp`, set at app level, field `messages` |

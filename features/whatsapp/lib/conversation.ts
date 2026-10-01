@@ -13,7 +13,7 @@ import { eitherDrafts, toDraft, type Draft, type EitherAction, type ExpenseDraft
 import { formatNaira } from "@/shared/lib/format";
 import { added, AUTO_SAVE_AFTER, needsAsking, offerDue, reviewed, undo, withAutoSave, type Undo } from "@/features/tell/lib/autosave";
 import { shopProfile } from "@/features/tell/lib/profile";
-import { describeLearned, learnedAnything, mergeCatalog, onlyLink, SOCIAL_LABELS, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
+import { aboutSocials, describeLearned, learnedAnything, mergeCatalog, onlyLink, SOCIAL_LABELS, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
 import { learn, memoryForPrompt, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
 import { dueFrom, formatWhen, lagosClock, reminderList, snoozed, type Reminder } from "@/features/reminders/lib/when";
 import { normalizePhone } from "@/shared/lib/phone";
@@ -127,9 +127,14 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
 
   if (message.image) return learnFrom(() => deps.learn!.fromImage(message.image!), phone, to, chat, deps);
 
-  // Any other button (e.g. "Hi BizBuddy" on the welcome message) is a hello: greet and show how it works.
-  if (message.buttonId) return deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
-  if (!message.text) return deps.send(to, `I can only read text messages for now.\n\n${HELP}`);
+  // Any other button (e.g. "Hi BizBuddy" on the welcome message) is a hello.
+  if (message.buttonId) return deps.send(to, [chatHeading(chat), "Tell me what happened, the way you'd say it."].filter(Boolean).join("\n\n"));
+  if (!message.text) {
+    // A reaction or a system note is not the owner talking. Don't answer it with a script.
+    if (message.other && ["reaction", "system", "unsupported", "ephemeral", "request_welcome"].includes(message.other)) return;
+    const voice = message.other === "audio" || message.other === "video";
+    return deps.send(to, voice ? "I can't listen to a voice note yet. Type it the way you'd tell me, and I'll follow." : "I can only read what you type for now. A photo of your page or price list I can learn from.");
+  }
 
   const [books, memory, waiting, thread] = await Promise.all([
     found ? Promise.resolve(found) : deps.loadBooks(chat.businessId),
@@ -184,6 +189,14 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     return;
   }
 
+  const socials = !answering && message.text ? aboutSocials(message.text, memory.socials) : null;
+  if (socials) {
+    await say(socials);
+    const reminder = earlier && reminderFor(earlier, books);
+    if (reminder) await deps.send(to, reminder.body, reminder.buttons);
+    return;
+  }
+
   let actions;
   try {
     const result = await deps.interpret({
@@ -193,7 +206,7 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
       time: lagosClock(deps.now?.() ?? new Date()).time,
       customers: books.customers.map((c) => c.name),
       chatWith: [chatPrompt(chat), shopProfile(books.business)].filter(Boolean).join(" ") || null,
-      memory: memoryForPrompt(memory),
+      memory: [memoryForPrompt(memory), Object.values(memory.socials).some(Boolean) ? null : "No social accounts are saved for this shop yet. If they ask, say they aren't connected yet. Never invent a handle."].filter(Boolean).join("\n") || null,
       thread: threadPrompt(thread),
     });
     actions = personalize(result.actions, chat);
@@ -321,7 +334,7 @@ export function reminderFor(pending: Pending, books: BizData): { body: string; b
 
 /** Reads a picture or website, and shows what it learned about the business with Save / Cancel. */
 async function learnFrom(read: () => Promise<Learned>, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, deps: Deps) {
-  if (!deps.learn) return deps.send(to, `I can only read text messages for now.\n\n${HELP}`);
+  if (!deps.learn) return deps.send(to, "I can only read what you type for now. A photo of your page or price list I can learn from.");
   let learned: Learned;
   try {
     learned = await read();

@@ -97,6 +97,21 @@ export function mergeCatalog(catalog: CatalogItem[], description: string, learne
 
 export const SOCIAL_LABELS: Record<SocialPlatform, string> = { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", x: "X (Twitter)", website: "website" };
 
+/** A human answer when they ask if this chat knows their socials. Null when the message is about something else. */
+export function aboutSocials(message: string, socials: Socials): string | null {
+  const q = message.toLowerCase().replace(/[’']/g, "'").replace(/[?.!]+$/g, "").replace(/\s+/g, " ").trim();
+  if (!q || (/\d/.test(q) && /\b(sold|sell|paid|pay|spent|spend|k)\b/.test(q))) return null;
+  const asking = /\b(socials?|instagram|tiktok|facebook|twitter|website)\b/.test(q) || /\bmy x\b/.test(q);
+  const aboutLink = /\b(connect|connected|link|linked|have|got|know|remember|save|saved|follow|following)\b/.test(q);
+  if (!asking || !aboutLink) return null;
+  const saved = SOCIAL_PLATFORMS.filter((platform) => socials[platform]);
+  if (saved.length === 0) {
+    return "Not yet. Send me the link, your Instagram or your website, and I'll keep it for this shop. I can't open the page myself, so a screenshot of what you sell is what helps me learn it.";
+  }
+  const list = saved.map((platform) => (platform === "website" ? `your website ${socials[platform]}` : `${SOCIAL_LABELS[platform]} as @${socials[platform]}`)).join(" and ");
+  return `Yeah. I've got ${list}. I don't open the pages myself. Send a screenshot if you want me to learn what you sell.`;
+}
+
 /**
  * For the AI: what the owner showed about the business. Product names only, never prices, so the AI
  * can't use a listed price as an amount the note didn't say (the app never guesses money).

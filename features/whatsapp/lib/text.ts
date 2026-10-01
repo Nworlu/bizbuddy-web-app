@@ -93,5 +93,4 @@ export function notLinked(appUrl: string | undefined): string {
   ].join("\n\n");
 }
 
-export const HELP =
-  "Tell me what happened in the shop, like:\n• _Sold 2 shoes to David for 85k, he paid 50k_\n• _Paid 4k for delivery_\n• _How much did I sell this month?_";
+export const HELP = "Tell me what happened, the way you'd say it. Like sold 2 shoes to David for 85k, he paid 50k. Or ask how the day went.";

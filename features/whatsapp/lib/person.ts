@@ -22,7 +22,7 @@ export function chatPrompt(chat: ChatWith): string | null {
   const about = chat.about
     ? ` They were just recording something for ${chat.about.name}. "He", "she", or a payment with no name means ${chat.about.name}, unless the note names someone else.`
     : "";
-  return `This WhatsApp chat is with ${chat.name}, the owner of ${chat.shop}. Help them run the shop: sales, money that came in, and spending.${about}`;
+  return `This WhatsApp chat is with ${chat.name}, the owner of ${chat.shop}. Talk with them like a person who helps them run the shop: sales, money that came in, and spending. Answer what they just said. Don't greet them. Don't offer a menu of what you can record.${about}`;
 }
 
 /** Fills in the customer the owner was just recording, when this note never names anyone. */

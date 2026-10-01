@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { knowledgeForPrompt, mergeCatalog, onlyLink, socialFromUrl, tidyLearned } from "./knowledge";
+import { aboutSocials, knowledgeForPrompt, mergeCatalog, onlyLink, socialFromUrl, tidyLearned } from "./knowledge";
 
 describe("what BizBuddy learns about the business", () => {
   it("tidies what the AI read: clipped names, whole-naira prices, no duplicates", () => {
@@ -25,5 +25,11 @@ describe("what BizBuddy learns about the business", () => {
     expect(prompt).toContain("Products they list: MacBook, bag.");
     expect(prompt).toContain("Instagram @jay");
     expect(prompt).not.toContain("450");
+  });
+
+  it("answers a socials question from the handles that were saved", () => {
+    expect(aboutSocials("Are you connected to my socials", {})).toContain("Not yet");
+    expect(aboutSocials("Are you connected to my socials?", { instagram: "adafashion" })).toContain("@adafashion");
+    expect(aboutSocials("Sold 2 shoes for 20k", { instagram: "adafashion" })).toBeNull();
   });
 });

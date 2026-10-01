@@ -153,7 +153,13 @@ describe("who is chatting", () => {
   it("says it only reads text for now", async () => {
     const w = world();
     await handleMessage({ id: "v1", from: OWNER, other: "audio" }, w.deps);
-    expect(w.last().body).toContain("I can only read text messages for now");
+    expect(w.last().body).toContain("I can't listen to a voice note yet");
+  });
+
+  it("stays quiet when WhatsApp sends a reaction", async () => {
+    const w = world();
+    await handleMessage({ id: "v2", from: OWNER, other: "reaction" }, w.deps);
+    expect(w.sent).toHaveLength(0);
   });
 });
 
@@ -564,5 +570,17 @@ describe("the chat follows what they just said", () => {
     expect(w.last().body).toContain("who owes you");
     await w.say("Who is my best customer?");
     expect(w.last().body).toContain("bought the most");
+  });
+
+  it("answers whether it has their socials, from what was saved", async () => {
+    const w = world();
+    w.script([{ kind: "unclear", reply: "I can help with sales. What would you like me to record?" }]);
+    await w.say("Are you connected to my socials");
+    expect(w.asked).toHaveLength(0);
+    expect(w.last().body).toContain("Not yet");
+    await w.say("https://www.instagram.com/jaygadgets_ng/");
+    await w.say("Are you connected to my socials?");
+    expect(w.last().body).toContain("Instagram as @jaygadgets_ng");
+    expect(w.asked).toHaveLength(0);
   });
 });

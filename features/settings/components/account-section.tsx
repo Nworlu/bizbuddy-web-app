@@ -45,7 +45,7 @@ function BackUp({ business }: { business: Business }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!normalizePhone(phone)) return setError("Enter a valid phone number for the country you selected.");
+    if (!normalizePhone(phone)) return setError("Enter a Nigerian phone number, like 0803 123 4567.");
     if (password.length < MIN_PASSWORD) return setError(`Choose a password of at least ${MIN_PASSWORD} characters.`);
     setSaving(true);
     setError(null);

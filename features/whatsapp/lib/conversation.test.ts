@@ -111,19 +111,6 @@ beforeEach(() => vi.useFakeTimers({ now: NOON_LAGOS, toFake: ["Date"] }));
 afterEach(() => vi.useRealTimers());
 
 describe("who is chatting", () => {
-  it("accepts international WhatsApp numbers when the account exists", async () => {
-    const uk = "447700900123";
-    const w = world();
-    w.deps.whoIsChatting = async (phone) =>
-      phone === uk
-        ? { chat: { kind: "owner", name: "Ada", shop: "Ada's Fashion", businessId: "shop-1", about: null }, books: w.books() }
-        : { chat: { kind: "unknown", profileName: null }, books: null };
-    w.script([sale()]);
-    await w.say("Sold a cap for 10k", uk);
-    expect(w.sent.length).toBeGreaterThan(0);
-    expect(w.sent[0].body).not.toContain("couldn't read your phone");
-  });
-
   it("tells a number without an account how to sign up, and never reads the note", async () => {
     const w = world();
     await w.say("Sold shoes", "2348099999999");

@@ -69,7 +69,7 @@ function BusinessSection({ business }: { business: Business }) {
     event.preventDefault();
     if (!name.trim()) return setError("Enter your business name.");
     if (!ownerName.trim()) return setError("Enter your name.");
-    if (phone.trim() && !normalizePhone(phone)) return setError("Enter a valid phone number, or leave it empty.");
+    if (phone.trim() && !normalizePhone(phone)) return setError("Enter a phone number like 08012345678, or leave it empty.");
     try {
       updateBusiness({ name, ownerName, phone: phone.trim() ? normalizePhone(phone) ?? phone.trim() : "", type, about });
       showToast("Business details saved.");

@@ -25,7 +25,7 @@ export function LoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!normalizePhone(phone)) return setError("Enter a valid phone number for the country you selected.");
+    if (!normalizePhone(phone)) return setError("Enter your phone number, like 0803 123 4567.");
     if (!password) return setError("Enter your password.");
     setSaving(true);
     setError(null);

@@ -132,7 +132,7 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
 
   const to = message.from;
   const phone = normalizeWhatsAppSender(message.from);
-  if (!phone) return deps.send(to, "BizBuddy couldn't read your phone number. Use the same number you signed up with, including country code.");
+  if (!phone) return deps.send(to, "BizBuddy works with Nigerian phone numbers for now.");
 
   const { chat, books: found } = await deps.whoIsChatting(phone, message.profileName ?? null);
   if (chat.kind !== "owner") return deps.send(to, notLinked(deps.appUrl));

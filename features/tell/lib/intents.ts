@@ -7,8 +7,8 @@
 
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type ExpenseCategory, type LocalDate, type PaymentMethod } from "@/shared/lib/types";
 
-export const QUESTION_TOPICS = ["owing", "customer_balance", "customer_purchases", "sales", "expenses", "collected"] as const;
-export const QUESTION_PERIODS = ["today", "week", "month", "last-month"] as const;
+export const QUESTION_TOPICS = ["owing", "customer_balance", "customer_purchases", "sales", "expenses", "collected", "top_customer"] as const;
+export const QUESTION_PERIODS = ["today", "yesterday", "week", "last-week", "month", "last-month"] as const;
 
 export type SaleAction = {
   kind: "sale";

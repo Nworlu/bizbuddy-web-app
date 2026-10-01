@@ -6,6 +6,7 @@ import {
   customerHistory,
   customersOwing,
   customersWithBalances,
+  topBuyers,
   customerTotals,
   expenseSummary,
   laterPayments,
@@ -77,6 +78,12 @@ describe("customer totals", () => {
       ["Sarah Ibrahim", 20000],
       ["David Okafor", 15000],
     ]);
+  });
+
+  it("ranks who bought the most", () => {
+    const ranked = topBuyers(data);
+    expect(ranked[0].totalSales).toBeGreaterThan(ranked.at(-1)!.totalSales);
+    expect(ranked.every((row) => row.totalSales > 0)).toBe(true);
   });
 
   it("lists everyone: owing first, then paid-up customers by name", () => {

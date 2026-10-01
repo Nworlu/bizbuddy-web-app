@@ -7,19 +7,20 @@
 // Everything outside (WhatsApp, Supabase, the AI) comes in through Deps, so tests can run the whole
 // conversation without any of them.
 
-import { answerTopic } from "@/features/ask/lib/answer";
+import { answerTopic, owingDetail } from "@/features/ask/lib/answer";
 import { applyDraft, checkDraft, describeDraft, MISSING_QUESTIONS } from "@/features/tell/lib/drafts";
 import { eitherDrafts, toDraft, type Draft, type EitherAction, type ExpenseDraft, type Interpretation, type ReminderAction, type SaleDraft } from "@/features/tell/lib/intents";
 import { formatNaira } from "@/shared/lib/format";
 import { added, AUTO_SAVE_AFTER, needsAsking, offerDue, reviewed, undo, withAutoSave, type Undo } from "@/features/tell/lib/autosave";
 import { shopProfile } from "@/features/tell/lib/profile";
-import { describeLearned, learnedAnything, mergeCatalog, onlyLink, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
+import { describeLearned, learnedAnything, mergeCatalog, onlyLink, SOCIAL_LABELS, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
 import { learn, memoryForPrompt, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
 import { dueFrom, formatWhen, lagosClock, reminderList, snoozed, type Reminder } from "@/features/reminders/lib/when";
 import { normalizePhone } from "@/shared/lib/phone";
 import type { BizData } from "@/shared/lib/types";
 import { chatHeading, chatPrompt, nextAbout, personalize, type ChatWith } from "./person";
 import { answerToText, AUTO_OFF, AUTO_ON, CANCEL, command, decision, HELP, lagosToday, notLinked, reminderButtonId, reminderCommand, SAVE, SAVE_EXPENSE, SAVE_SALE, UNDO, type Choice, type ReminderCommand } from "./text";
+import { continueTalk, remember, threadPrompt, WHAT_YOU_CAN_ASK, type Turn } from "./thread";
 
 export type Incoming = { id: string; from: string; profileName?: string; text?: string; buttonId?: string; image?: { id: string; caption?: string }; other?: string };
 export type Button = { id: string; title: string };
@@ -33,7 +34,7 @@ export type LastAutoSave = Undo & { text: string };
  * whose short answer is added to the note and read again. remindedAt: when the one reminder went out.
  */
 export type Pending = { businessId: string; note: string; drafts: Draft[]; either?: Either; undo?: LastAutoSave; asking?: string; remindedAt?: string; learn?: Learned };
-export type TellInput = { message: string; today: string; weekday: string; time?: string; customers: string[]; chatWith?: string | null; memory?: string | null };
+export type TellInput = { message: string; today: string; weekday: string; time?: string; customers: string[]; chatWith?: string | null; memory?: string | null; thread?: string | null };
 
 /** The owner's reminders (features/reminders/server/store.ts), each call limited to their shop. */
 export interface ReminderDeps {
@@ -55,6 +56,9 @@ export interface Deps {
   setPending(phone: string, pending: Pending): Promise<void>;
   clearPending(phone: string): Promise<void>;
   setAbout(phone: string, about: { businessId: string; customerId: string; name: string } | null): Promise<void>;
+  /** What you were just talking about, so a short follow-up stays on it. */
+  getThread(phone: string): Promise<Turn[]>;
+  saveThread(phone: string, turns: Turn[]): Promise<void>;
   getMemory(businessId: string): Promise<ShopMemory>;
   saveMemory(businessId: string, memory: ShopMemory): Promise<void>;
   /** Throws BusyError when the AI is overloaded, RefusedError when it declines, anything else on failure. */
@@ -127,7 +131,12 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   if (message.buttonId) return deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
   if (!message.text) return deps.send(to, `I can only read text messages for now.\n\n${HELP}`);
 
-  const [books, memory, waiting] = await Promise.all([found ? Promise.resolve(found) : deps.loadBooks(chat.businessId), deps.getMemory(chat.businessId), deps.getPending(phone)]);
+  const [books, memory, waiting, thread] = await Promise.all([
+    found ? Promise.resolve(found) : deps.loadBooks(chat.businessId),
+    deps.getMemory(chat.businessId),
+    deps.getPending(phone),
+    deps.getThread(phone),
+  ]);
   const pending = waiting?.businessId === chat.businessId ? waiting : null;
 
   // BizBuddy asked for something missing ("Who bought it?"): a short reply is the answer, so read the
@@ -144,13 +153,36 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
       await deps.saveMemory(chat.businessId, { ...memory, socials: { ...memory.socials, [social.platform]: social.handle } });
       return deps.send(
         to,
-        `Saved your ${social.platform === "x" ? "X" : social.platform[0].toUpperCase() + social.platform.slice(1)}: @${social.handle}.\n\nI can't open ${social.platform === "x" ? "X" : "social"} pages myself yet. Send me *screenshots* of your page, catalogue, or price list, and I'll learn what you sell from them.`,
+        `Saved your ${SOCIAL_LABELS[social.platform]}: @${social.handle}.\n\nI can't open social media pages myself yet. Send me *screenshots* of your page, catalogue, or price list, and I'll learn what you sell from them.`,
       );
     }
     return learnFrom(() => deps.learn!.fromWebsite(link), phone, to, chat, deps);
   }
   // A note still waiting on Save / Cancel from before.
   const earlier = !answering && pending && (pending.drafts.length > 0 || pending.either) ? pending : null;
+
+  let turns = thread;
+  const say = async (body: string, buttons?: Button[]) => {
+    turns = remember(turns, message.text ?? note, body);
+    await deps.saveThread(phone, turns);
+    return deps.send(to, body, buttons);
+  };
+
+  // A short follow-up stays on the last question. The numbers still come from the books.
+  const continued = !answering && message.text ? continueTalk(message.text, thread) : null;
+  if (continued) {
+    const now = deps.now?.();
+    const text =
+      continued.kind === "help"
+        ? WHAT_YOU_CAN_ASK
+        : continued.kind === "chat"
+          ? continued.reply
+          : answerToText(continued.detail ? owingDetail(books) : answerTopic(continued.topic, continued.customer, continued.period, books, now));
+    await say(text);
+    const reminder = earlier && reminderFor(earlier, books);
+    if (reminder) await deps.send(to, reminder.body, reminder.buttons);
+    return;
+  }
 
   let actions;
   try {
@@ -162,10 +194,11 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
       customers: books.customers.map((c) => c.name),
       chatWith: [chatPrompt(chat), shopProfile(books.business)].filter(Boolean).join(" ") || null,
       memory: memoryForPrompt(memory),
+      thread: threadPrompt(thread),
     });
     actions = personalize(result.actions, chat);
   } catch (error) {
-    return deps.send(to, deps.isBusy(error) ? "I'm busy right now. Send that again in a minute." : "Sorry, I couldn't read that just now. Try again, or record it in the app.");
+    return say(deps.isBusy(error) ? "I'm busy right now. Send that again in a minute." : "Sorry, I couldn't read that just now. Try again, or record it in the app.");
   }
 
   // The owner's next "he paid 20k" is about whoever this note named.
@@ -186,21 +219,21 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     } else drafts.push(toDraft(action, today));
   }
 
-  if (answers.length > 0) await deps.send(to, answers.join("\n\n"));
+  if (answers.length > 0) await say(answers.join("\n\n"));
   const noTime = await setReminders(reminders, phone, to, chat, deps);
   if (noTime && drafts.length === 0 && !unsure) {
     // "Remind me to call David" with no time: ask when, and read the answer with this note.
     await deps.setPending(phone, { businessId: chat.businessId, note, drafts: [], asking: "When should I remind you?" });
-    return deps.send(to, WHEN);
+    return say(WHEN);
   }
   // A new note to record replaces the one still waiting: say so, so it isn't lost silently.
-  if (earlier && (unsure || drafts.length > 0)) await deps.send(to, `(Your earlier note wasn't saved: _${clip(earlier.note)}_. Send it again if you want it.)`);
+  if (earlier && (unsure || drafts.length > 0)) await say(`(Your earlier note wasn't saved: _${clip(earlier.note)}_. Send it again if you want it.)`);
   if (unsure) return askWhich(unsure, drafts, note, phone, to, chat, books, today, deps);
   if (memory.autoSave === "on" && drafts.length > 0 && drafts.every((draft) => needsAsking(draft, books, today) === null)) {
     return saveNow(drafts, note, phone, to, chat, books, memory, deps);
   }
   if (drafts.length === 0) {
-    if (answers.length === 0 && reminders.length === 0) await deps.send(to, [chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
+    if (answers.length === 0 && reminders.length === 0) await say([chatHeading(chat), HELP].filter(Boolean).join("\n\n"));
     // Only a question: the earlier note is still waiting, so remind them with its buttons.
     const reminder = earlier && reminderFor(earlier, books);
     if (reminder) await deps.send(to, reminder.body, reminder.buttons);
@@ -222,15 +255,15 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     const question = problems.find((problem): problem is string => problem !== null && MISSING_QUESTIONS.has(problem));
     if (question) {
       await deps.setPending(phone, { businessId: chat.businessId, note, drafts: [], asking: question });
-      return deps.send(to, `${blocks.join("\n\n")}\n\n${question}`);
+      return say(`${blocks.join("\n\n")}\n\n${question}`);
     }
     await deps.clearPending(phone);
-    return deps.send(to, `${blocks.join("\n\n")}\n\nSend it again with what's missing, and I'll record it.`);
+    return say(`${blocks.join("\n\n")}\n\nSend it again with what's missing, and I'll record it.`);
   }
 
   await deps.setPending(phone, { businessId: chat.businessId, note, drafts: ready });
   const ask = ready.length === drafts.length ? (ready.length > 1 ? "Save these?" : "Save this?") : `Save the ${ready.length === 1 ? "complete one" : `${ready.length} complete ones`}? The rest need what's missing.`;
-  return deps.send(to, `${blocks.join("\n\n")}\n\n${ask}`, BUTTONS);
+  return say(`${blocks.join("\n\n")}\n\n${ask}`, BUTTONS);
 }
 
 /**

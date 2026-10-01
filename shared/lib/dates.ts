@@ -51,6 +51,27 @@ export function periodRange(period: Period, now = new Date()): DateRange {
   }
 }
 
+/** A question can also mean yesterday or last week. The dashboard filter stays on Period. */
+export type QuestionPeriod = Period | "yesterday" | "last-week";
+
+export function questionRange(period: QuestionPeriod, now = new Date()): DateRange {
+  if (period === "yesterday") {
+    const day = daysAgo(1, now);
+    return { start: day, end: day };
+  }
+  if (period === "last-week") {
+    const offset = (now.getDay() + 6) % 7;
+    return { start: daysAgo(offset + 7, now), end: daysAgo(offset + 1, now) };
+  }
+  return periodRange(period, now);
+}
+
+export function questionPeriodText(period: QuestionPeriod): string {
+  if (period === "yesterday") return "yesterday";
+  if (period === "last-week") return "last week";
+  return PERIODS.find((p) => p.key === period)!.label.toLowerCase();
+}
+
 export function inRange(date: LocalDate, range: DateRange): boolean {
   return date >= range.start && date <= range.end;
 }

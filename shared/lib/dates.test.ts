@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customRange, daysAgo, inRange, periodRange, toLocalDate } from "./dates";
+import { customRange, daysAgo, inRange, periodRange, questionRange, toLocalDate } from "./dates";
 
 // Tuesday 29 September 2026, midday local time.
 const TUESDAY = new Date(2026, 8, 29, 12);
@@ -41,6 +41,11 @@ describe("periodRange", () => {
 
   it("last month in January is December of the previous year", () => {
     expect(periodRange("last-month", new Date(2026, 0, 15))).toEqual({ start: "2025-12-01", end: "2025-12-31" });
+  });
+
+  it("yesterday is the day before, and last week is the Monday-to-Sunday before this week", () => {
+    expect(questionRange("yesterday", TUESDAY)).toEqual({ start: "2026-09-28", end: "2026-09-28" });
+    expect(questionRange("last-week", TUESDAY)).toEqual({ start: "2026-09-21", end: "2026-09-27" });
   });
 });
 

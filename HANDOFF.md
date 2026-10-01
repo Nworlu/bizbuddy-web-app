@@ -28,6 +28,7 @@ Built, **not yet tried on a phone**:
 - **Reminders the owner sets** ("remind me Friday at 10am to collect from David"), sent on WhatsApp, and a choice of when to be reminded about unsaved notes (decision 28). Reminders due more than 24 hours after the owner's last message need the `bizbuddy_reminder` template.
 - **Check-ins** (7pm nudge, Sunday weekly summary) and **learning the business from screenshots, photos, a website, and social handles** (decisions 30–31). **The scheduler runs inside Supabase (pg_cron, migration 0009), and works.**
 - **The AI knows the owner and the business** (decision 29): name, shop, type, and a new "What does your business do?" field, sent with every note on WhatsApp and in Tell BizBuddy.
+- **The chat follows the last thing said** (decision 23, 1 Oct): "what of today?", "break it down", "I just told you", and "who is my best customer?" stay on the thread. Needs migration **0010** in Supabase before a live chat keeps that thread.
 
 The details are in **Current setup** below.
 
@@ -104,7 +105,7 @@ app/
   manifest.ts, apple-icon.png  install on the home screen (icons in public/)
   (app)/ask/page.tsx           Tell BizBuddy chat; reads ?q= from the dashboard (Suspense for useSearchParams)
   api/tell/route.ts            POST: the AI reads a note (signed-in users only)
-  api/whatsapp/route.ts        WhatsApp Cloud API webhook: GET verify, POST signed messages, with what this shop has already confirmed
+  api/whatsapp/route.ts        WhatsApp Cloud API webhook: GET verify, POST signed messages, with the recent chat and what this shop has already confirmed
   api/whatsapp/welcome/route.ts  POST: sends the signed-in owner the WhatsApp welcome template, once per account
   api/tell/learn/route.ts      POST: what the owner did with a draft (saved / corrected / cancelled / undone / auto); remembers it, counts toward auto-save
   api/tell/autosave/route.ts   GET / POST: the auto-save setting for the signed-in shop
@@ -122,13 +123,13 @@ features/
   sales/                       sales list, Record Sale, sale details, edit sale
   customers/                   customers list, customer page, add and edit customer, CustomerAvatar
   expenses/                    expenses list, Record Expense
-  ask/                         lib/answer.ts: answers from the books (keyword matcher + answerTopic)
+  ask/                         lib/answer.ts: answers from the books (keyword matcher + answerTopic), including yesterday, last week, and who bought the most
   tell/                        Tell BizBuddy: screen, draft cards, lib/intents.ts (schema, toDraft), lib/memory.ts (what this shop has confirmed, its team, auto-save state), lib/autosave.ts (when to offer, what still asks, undo), lib/drafts.ts (check / describe / apply, MISSING questions), lib/client.ts, server/interpret.ts (OpenAI), server/memory.ts
   settings/                    settings screen, account section
   account/                     login screen
   checkins/                    lib/checkins.ts (when due, evening text, weekly summary), server/store.ts (claims, owners who chat)
   reminders/                   lib/when.ts (Lagos time ↔ UTC, dueFrom, formatWhen, snooze, the numbered list), lib/client.ts, server/store.ts (secret key), components/reminder-card.tsx
-  whatsapp/                    lib/conversation.ts (one message, start to finish; everything outside comes in as Deps, so tests fake it), lib/person.ts (who the chat is with), lib/text.ts (replies, Save/Cancel words), server/meta.ts (signature check, send text/buttons/template, typing indicator), server/books.ts (Supabase with the secret key), server/who.ts
+  whatsapp/                    lib/conversation.ts (one message, start to finish; everything outside comes in as Deps, so tests fake it), lib/thread.ts (follow-ups from the last few lines), lib/person.ts (who the chat is with), lib/text.ts (replies, Save/Cancel words), server/meta.ts (signature check, send text/buttons/template, typing indicator), server/books.ts (Supabase with the secret key), server/who.ts
 
 shared/
   ui/                          logo, icons, period-filter (with usePeriodRange), confirm-dialog, delete-payment-button, offline-banner, service-worker, whatsapp-opt-in  (used by more than one feature)
@@ -205,6 +206,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 23. **WhatsApp** (`app/api/whatsapp/route.ts`, `features/whatsapp/`). The shop owner messages BizBuddy's WhatsApp number from the phone number of their account; `business_for_login` (migration 0002) finds their shop from the account's login, never from a number typed in the app. Other numbers are told how to sign up; customers are not chatted with.
    - Flow (`features/whatsapp/lib/conversation.ts`): the same reader as Tell BizBuddy, plus who the chat is with and shop memory → a reply with what was understood (`describeDraft`, the app's own sums) and **Save** / **Cancel** buttons, or typed yes / no. Save re-checks against the books as they are then (`checkDraft`) and records with the shared rules (`shared/lib/actions.ts`, `applyDraft`); phones get it on their next sync. Questions are answered from the books. Voice notes and images get "I can only read text for now".
    - The owner's chat stays on the last customer they named (`whatsapp_focus`), so "he paid 20k" goes to that person. Confirmed notes teach shop memory (`shop_memory`, migration 0003); the note is kept with the waiting drafts (migration 0004).
+   - **The chat follows the thread** (`features/whatsapp/lib/thread.ts`, table `whatsapp_thread`, migration **0010**). The last eight lines are kept for that phone. Short follow-ups are answered from the books without another model call: "how much did I make yesterday?", then "what of today?" / "last week" / "last month" stays on sales; "who owes me?" then "break it down" or "I mean the money owed" lists the balances with what they bought; "who is my best customer?" is who bought the most; "what question can I ask you?" lists examples; "I am going to church" and "I just told you" answer that, instead of "I didn't catch a sale". A note that records money still goes to the reader. The same lines are sent with the next note so the model can continue anything the rules don't cover. Questions can also be today, yesterday, this week, last week, this month, or last month (`questionRange` in `shared/lib/dates.ts`). Run `0010_whatsapp_thread.sql` in the Supabase SQL editor. Without the table, replies still go out; the next message just won't remember the last one.
    - Safety: only calls signed with `WHATSAPP_APP_SECRET` are accepted; each message id is handled once (`whatsapp_messages`); the server writes with `SUPABASE_SECRET_KEY` and only ever to the sender's shop. Meta gets its 200 at once and the reply goes out just after (`after()`, `maxDuration` 60).
    - Settings (server only): `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`, plus optional `WHATSAPP_WELCOME_TEMPLATE`, `WHATSAPP_TEMPLATE_LANGUAGE`, `WHATSAPP_GRAPH_VERSION` (default `v23.0`). Register `https://<app>/api/whatsapp` in Meta (WhatsApp → Configuration) with the verify token, subscribed to `messages`.
    - **Typing indicator.** The first thing done with a new message is `showTyping()`, which marks it read (blue ticks) and shows "typing…" in the owner's chat until the reply arrives, for up to about 25 seconds. If it fails, the reply still goes out.
@@ -282,7 +284,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
      - A **screenshot or photo** (Instagram or TikTok page, WhatsApp catalogue, price list), sent on WhatsApp or uploaded in Settings → What BizBuddy knows (up to 3, shrunk to 1600px JPEG in the browser).
      - A **website link**, sent alone on WhatsApp or pasted in Settings.
      - The AI (OpenAI, same model, strict schema) returns a description and products with prices, and BizBuddy shows them with **Save / Cancel**. Nothing is kept until Save.
-   - **Social links:** instagram.com, tiktok.com, facebook.com, and x.com links are **not read**; those sites block it, and an official Instagram connection needs Meta app review. The handle is saved (`socials`) and BizBuddy asks for screenshots instead. Handles can also be typed in Settings.
+   - **Social links:** Instagram, TikTok, Facebook, and X / Twitter (x.com or twitter.com) links are **not read**; those sites block it, and an official Instagram connection needs Meta app review. The handle is saved (`socials`) and BizBuddy asks for screenshots instead. Handles can also be typed in Settings (Instagram, TikTok, Facebook, X (Twitter), website).
    - **Kept in shop memory:** `description`, `catalog` (up to 40, newest first), and `socials`. The AI gets the description, **product names only (never prices**, so a listed price can't become an amount the note didn't say), and the handles.
    - **Link safety:** only http(s) on ports 80/443, and no private, loopback, link-local, or metadata addresses (checked again on each redirect). 8-second timeout, 1 MB, HTML or text only. Tested: 127.0.0.1 and 169.254.169.254 are refused. One gap: the check resolves DNS separately from `fetch`, so a DNS-rebinding host could still slip past. Pin the resolved IP if this becomes a concern.
    - **Limits:** reading is limited to 20 per shop per 10 minutes per server instance. Pictures are capped at 5 MB, and the WhatsApp media size is checked before downloading.
@@ -307,7 +309,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 None of these IDs are secrets. The tokens and keys live only in `.env` (git-ignored); `.env.example` lists every name.
 
 **Supabase**
-- Migrations **0001–0009 have all been run** (checked 30 Sep: `reminders`, `whatsapp_chats`, `check_ins`, and `businesses.about` exist).
+- Migrations **0001–0009 have all been run** (checked 30 Sep: `reminders`, `whatsapp_chats`, `check_ins`, and `businesses.about` exist). **0010** (`whatsapp_thread`) has not been run yet. Run `supabase/migrations/0010_whatsapp_thread.sql` in the SQL editor so WhatsApp can keep the chat.
 - **Vault secrets are set:** `bizbuddy_remind_url` (the current ngrok address + `/api/whatsapp/remind`) and `bizbuddy_cron_secret`. **When ngrok restarts, update `bizbuddy_remind_url`** (decision 32) as well as Meta's webhook.
 - **The scheduler works:** pg_cron calls `/api/whatsapp/remind` and the app answers 200. Supabase was set up on the 5-minute schedule. The migration file now says every minute; to switch the live job, run `select cron.schedule('bizbuddy-reminders', '* * * * *', $$select public.bizbuddy_run_reminders()$$);` (it replaces the job).
 - "Confirm email" is off.

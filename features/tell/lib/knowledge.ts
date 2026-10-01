@@ -95,7 +95,7 @@ export function mergeCatalog(catalog: CatalogItem[], description: string, learne
   };
 }
 
-const LABELS: Record<SocialPlatform, string> = { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", x: "X", website: "website" };
+export const SOCIAL_LABELS: Record<SocialPlatform, string> = { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", x: "X (Twitter)", website: "website" };
 
 /**
  * For the AI: what the owner showed about the business. Product names only, never prices, so the AI
@@ -105,7 +105,7 @@ export function knowledgeForPrompt(knowledge: { description: string; catalog: Ca
   const lines: string[] = [];
   if (knowledge.description) lines.push(`From their own page: “${knowledge.description}”.`);
   if (knowledge.catalog.length > 0) lines.push(`Products they list: ${knowledge.catalog.slice(0, 25).map((p) => p.name).join(", ")}.`);
-  const online = SOCIAL_PLATFORMS.filter((p) => knowledge.socials[p]).map((p) => (p === "website" ? `website ${knowledge.socials[p]}` : `${LABELS[p]} @${knowledge.socials[p]}`));
+  const online = SOCIAL_PLATFORMS.filter((p) => knowledge.socials[p]).map((p) => (p === "website" ? `website ${knowledge.socials[p]}` : `${SOCIAL_LABELS[p]} @${knowledge.socials[p]}`));
   if (online.length > 0) lines.push(`Online: ${online.join(", ")}.`);
   return lines;
 }

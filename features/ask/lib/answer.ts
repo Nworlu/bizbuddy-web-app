@@ -2,8 +2,8 @@
 // answerQuestion() is keyword matching (works offline); answerTopic() answers a question Tell BizBuddy
 // already understood. Neither uses AI for the answer: every number comes from shared/lib/finance.ts.
 
-import { PERIODS, periodRange, type Period } from "@/shared/lib/dates";
-import { customerTotals, customersOwing, expenseSummary, periodSummary } from "@/shared/lib/finance";
+import { questionPeriodText, questionRange, type QuestionPeriod } from "@/shared/lib/dates";
+import { customerTotals, customersOwing, expenseSummary, periodSummary, topBuyers } from "@/shared/lib/finance";
 import { formatNaira } from "@/shared/lib/format";
 import type { BizData, Customer } from "@/shared/lib/types";
 import { routes } from "@/shared/lib/routes";
@@ -22,15 +22,17 @@ export const SUGGESTIONS = ["How much did I sell this month?", "How much did I s
 const has = (q: string, words: string[]) => words.some((w) => new RegExp(`\\b${w}`).test(q));
 
 /** "today", "this week", "last month"… Defaults to this month, as in the plan's examples. */
-function periodIn(q: string): Period {
+function periodIn(q: string): QuestionPeriod {
+  if (/\byesterday\b/.test(q)) return "yesterday";
   if (/\btoday\b/.test(q)) return "today";
+  if (/\blast week\b/.test(q)) return "last-week";
   if (/\b(this|past) week\b/.test(q)) return "week";
   if (/\blast month\b/.test(q)) return "last-month";
   return "month";
 }
 
-function periodText(period: Period) {
-  return PERIODS.find((p) => p.key === period)!.label.toLowerCase();
+function periodText(period: QuestionPeriod) {
+  return questionPeriodText(period);
 }
 
 /** Customers named in the question: full name first, then first name alone (which may match several people). */
@@ -79,8 +81,37 @@ function whoOwes(data: BizData): Answer {
   };
 }
 
-function salesIn(period: Period, data: BizData, now: Date): Answer {
-  const range = periodRange(period, now);
+/** The same balances, with what each person bought, for "break it down". */
+export function owingDetail(data: BizData): Answer {
+  const owing = customersOwing(data);
+  if (owing.length === 0) return { text: "Nobody owes you money right now." };
+  return {
+    text: "Here's the money still owed:",
+    rows: owing.map(({ customer, balance }) => {
+      const products = [...new Set(data.sales.filter((sale) => sale.customerId === customer.id).map((sale) => sale.product))].slice(0, 3);
+      return { label: customer.name, value: products.length > 0 ? `${formatNaira(balance)} from ${products.join(", ")}` : formatNaira(balance), href: routes.customer(customer.id) };
+    }),
+    total: { label: "Total outstanding", value: formatNaira(owing.reduce((sum, x) => sum + x.balance, 0)) },
+  };
+}
+
+function bestCustomer(data: BizData): Answer {
+  const ranked = topBuyers(data);
+  if (ranked.length === 0) return { text: "You haven't recorded a sale yet, so there isn't a best customer.", link: { label: "Record a sale", href: "/sales/new" } };
+  const top = ranked[0].totalSales;
+  const best = ranked.filter((row) => row.totalSales === top);
+  if (best.length === 1) {
+    const { customer, totalSales } = best[0];
+    return { text: `${customer.name} has bought the most from you: ${formatNaira(totalSales)}.`, link: { label: `Open ${customer.name}`, href: routes.customer(customer.id) } };
+  }
+  return {
+    text: `${best.length} customers have bought the most, ${formatNaira(top)} each:`,
+    rows: best.map(({ customer, totalSales }) => ({ label: customer.name, value: formatNaira(totalSales), href: routes.customer(customer.id) })),
+  };
+}
+
+function salesIn(period: QuestionPeriod, data: BizData, now: Date): Answer {
+  const range = questionRange(period, now);
   const when = periodText(period);
   const count = data.sales.filter((s) => s.date >= range.start && s.date <= range.end).length;
   const summary = periodSummary(data, range);
@@ -91,9 +122,9 @@ function salesIn(period: Period, data: BizData, now: Date): Answer {
   };
 }
 
-function expensesIn(period: Period, data: BizData, now: Date): Answer {
+function expensesIn(period: QuestionPeriod, data: BizData, now: Date): Answer {
   const when = periodText(period);
-  const { total, byCategory, expenses } = expenseSummary(data, periodRange(period, now));
+  const { total, byCategory, expenses } = expenseSummary(data, questionRange(period, now));
   if (expenses.length === 0) return { text: `You haven't recorded any expenses ${when}.`, link: { label: "Record an expense", href: "/expenses/new" } };
   return {
     text: `You recorded ${formatNaira(total)} in expenses ${when}.`,
@@ -102,8 +133,8 @@ function expensesIn(period: Period, data: BizData, now: Date): Answer {
   };
 }
 
-function collectedIn(period: Period, data: BizData, now: Date): Answer {
-  const { collected } = periodSummary(data, periodRange(period, now));
+function collectedIn(period: QuestionPeriod, data: BizData, now: Date): Answer {
+  const { collected } = periodSummary(data, questionRange(period, now));
   return { text: `You collected ${formatNaira(collected)} ${periodText(period)}, including payments on older sales.` };
 }
 
@@ -122,22 +153,24 @@ export function answerQuestion(question: string, data: BizData, now = new Date()
   if (named.length === 1 && !aboutDebt && has(q, ["buy", "bought", "sell", "sold", "sale"])) return customerPurchases(named[0], data);
   if (named.length > 0 && (aboutDebt || has(q, ["pay", "paid", "much"]))) return customerBalance(named, data);
   if (aboutDebt) return whoOwes(data);
-  if (has(q, ["sell", "sold", "sale", "revenue", "income"])) return salesIn(period, data, now);
+  if (/\bbest customer\b|\bwho bought the most\b/.test(q)) return bestCustomer(data);
+  if (has(q, ["sell", "sold", "sale", "revenue", "income", "make", "made"])) return salesIn(period, data, now);
   if (has(q, ["spend", "spent", "expense", "cost"])) return expensesIn(period, data, now);
   if (has(q, ["collect", "received", "came in"])) return collectedIn(period, data, now);
   return FALLBACK;
 }
 
-export type Topic = "owing" | "customer_balance" | "customer_purchases" | "sales" | "expenses" | "collected";
+export type Topic = "owing" | "customer_balance" | "customer_purchases" | "sales" | "expenses" | "collected" | "top_customer";
 
 /** Answers a question Tell BizBuddy has already understood. The numbers still come from the books here. */
-export function answerTopic(topic: Topic, customerName: string | null, period: Period, data: BizData, now = new Date()): Answer {
+export function answerTopic(topic: Topic, customerName: string | null, period: QuestionPeriod, data: BizData, now = new Date()): Answer {
   if (topic === "customer_balance" || topic === "customer_purchases") {
     const named = customerName ? customersIn(customerName.toLowerCase().trim(), data.customers) : [];
     if (named.length === 0) return { text: customerName ? `${customerName} isn't one of your customers yet.` : "Which customer do you mean?" };
     return topic === "customer_purchases" && named.length === 1 ? customerPurchases(named[0], data) : customerBalance(named, data);
   }
   if (topic === "owing") return whoOwes(data);
+  if (topic === "top_customer") return bestCustomer(data);
   if (topic === "sales") return salesIn(period, data, now);
   if (topic === "expenses") return expensesIn(period, data, now);
   return collectedIn(period, data, now);

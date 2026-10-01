@@ -44,6 +44,14 @@ export function customersOwing(data: BizData): OwingCustomer[] {
     .sort((a, b) => b.balance - a.balance);
 }
 
+/** Who has bought the most, by the total of their sales. Ties stay, largest first. */
+export function topBuyers(data: BizData): { customer: Customer; totalSales: number }[] {
+  return data.customers
+    .map((customer) => ({ customer, totalSales: customerTotals(customer.id, data).totalSales }))
+    .filter((x) => x.totalSales > 0)
+    .sort((a, b) => b.totalSales - a.totalSales || a.customer.name.localeCompare(b.customer.name));
+}
+
 /** Every customer with their balance: those who owe first (largest first), then everyone else by name. */
 export function customersWithBalances(data: BizData): OwingCustomer[] {
   return data.customers

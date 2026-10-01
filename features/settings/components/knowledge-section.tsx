@@ -9,6 +9,7 @@ const SOCIAL_FIELDS: { platform: SocialPlatform; label: string; placeholder: str
   { platform: "instagram", label: "Instagram", placeholder: "@yourshop" },
   { platform: "tiktok", label: "TikTok", placeholder: "@yourshop" },
   { platform: "facebook", label: "Facebook", placeholder: "yourshop" },
+  { platform: "x", label: "X (Twitter)", placeholder: "@yourshop" },
   { platform: "website", label: "Website", placeholder: "yourshop.com" },
 ];
 

@@ -5,6 +5,7 @@ import { demoData } from "@/shared/lib/demo";
 import { customerTotals } from "@/shared/lib/finance";
 import type { BizData } from "@/shared/lib/types";
 import { handleMessage, reminderFor, type Deps, type Pending, type TellInput } from "./conversation";
+import type { Turn } from "./thread";
 import type { ChatWith } from "./person";
 
 const OWNER = "2348031234567";
@@ -16,6 +17,7 @@ function world() {
   let memory: ShopMemory = EMPTY_MEMORY;
   let about: { businessId: string; customerId: string; name: string } | null = null;
   const pending = new Map<string, Pending>();
+  const threads = new Map<string, Turn[]>();
   const seen = new Set<string>();
   const sent: { to: string; body: string; buttons: string[] }[] = [];
   const asked: TellInput[] = [];
@@ -37,6 +39,8 @@ function world() {
     setPending: async (phone, p) => void pending.set(phone, p),
     clearPending: async (phone) => void pending.delete(phone),
     setAbout: async (_phone, next) => void (about = next),
+    getThread: async (phone) => threads.get(phone) ?? [],
+    saveThread: async (phone, turns) => void threads.set(phone, turns),
     getMemory: async () => memory,
     saveMemory: async (_id, next) => void (memory = next),
     interpret: async (input) => {
@@ -471,7 +475,11 @@ describe("learning the business", () => {
     const w = world();
     await w.say("https://www.instagram.com/jaygadgets_ng/");
     expect(w.memory().socials).toEqual({ instagram: "jaygadgets_ng" });
+    expect(w.last().body).toContain("Saved your Instagram: @jaygadgets_ng.");
     expect(w.last().body).toContain("Send me *screenshots*");
+    await w.say("https://twitter.com/jaygadgets");
+    expect(w.memory().socials).toEqual({ instagram: "jaygadgets_ng", x: "jaygadgets" });
+    expect(w.last().body).toContain("Saved your X (Twitter): @jaygadgets.");
     expect(w.asked).toHaveLength(0);
   });
 
@@ -521,5 +529,40 @@ describe("questions and follow-ups", () => {
     await w.say("Sold a cap");
     expect(w.last().body).toBe("I'm busy right now. Send that again in a minute.");
     expect(w.pending.size).toBe(0);
+  });
+});
+
+describe("the chat follows what they just said", () => {
+  it("answers how much they made, then the next day, without asking the reader again", async () => {
+    const w = world();
+    w.script([{ kind: "unclear", reply: "I didn't catch a sale." }]);
+    await w.say("How much did I make yesterday?");
+    expect(w.asked).toHaveLength(0);
+    expect(w.last().body).toMatch(/yesterday/);
+    await w.say("What of today?");
+    expect(w.asked).toHaveLength(0);
+    expect(w.last().body).toMatch(/today/);
+    await w.say("Okay what of last week?");
+    expect(w.last().body).toMatch(/last week/);
+  });
+
+  it("breaks down who owes, and remembers church", async () => {
+    const w = world();
+    await w.say("Who owes me?");
+    expect(w.last().body).toContain("owe you money");
+    await w.say("Can you break it down?");
+    expect(w.last().body).toContain("still owed");
+    await w.say("I am going to church");
+    await w.say("I just told you");
+    expect(w.last().body).toContain("church");
+    expect(w.asked).toHaveLength(0);
+  });
+
+  it("says what they can ask, and who bought the most", async () => {
+    const w = world();
+    await w.say("What question can I ask you?");
+    expect(w.last().body).toContain("who owes you");
+    await w.say("Who is my best customer?");
+    expect(w.last().body).toContain("bought the most");
   });
 });

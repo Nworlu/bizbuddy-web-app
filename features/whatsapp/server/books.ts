@@ -12,6 +12,7 @@ import type { Draft } from "@/features/tell/lib/intents";
 import type { Either, LastAutoSave, Pending } from "@/features/whatsapp/lib/conversation";
 import type { Learned } from "@/features/tell/lib/knowledge";
 import { EMPTY_MEMORY, parseMemory, type ShopMemory } from "@/features/tell/lib/memory";
+import { parseTurns, type Turn } from "@/features/whatsapp/lib/thread";
 
 let client: SupabaseClient | undefined;
 /** The secret-key client. Only for server code that limits every query to one shop. */
@@ -213,6 +214,18 @@ export async function getMemory(businessId: string): Promise<ShopMemory> {
 export async function saveMemory(businessId: string, memory: ShopMemory): Promise<void> {
   const { error } = await db().from("shop_memory").upsert({ business_id: businessId, memory, updated_at: new Date().toISOString() });
   if (error) throw error;
+}
+
+/** The last few lines of this WhatsApp chat, so a follow-up stays on the same question. Empty if the table isn't there yet. */
+export async function getThread(phone: string): Promise<Turn[]> {
+  const { data, error } = await db().from("whatsapp_thread").select("turns").eq("phone", phone).maybeSingle();
+  if (error || !data) return [];
+  return parseTurns(data.turns);
+}
+
+export async function saveThread(phone: string, turns: Turn[]): Promise<void> {
+  const { error } = await db().from("whatsapp_thread").upsert({ phone, turns, updated_at: new Date().toISOString() });
+  if (error) console.error("WhatsApp: couldn't keep the chat", error.message);
 }
 
 /** Claims the one welcome for this account. False when it was already welcomed. */

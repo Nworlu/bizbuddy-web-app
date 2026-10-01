@@ -10,6 +10,8 @@ describe("what BizBuddy learns about the business", () => {
   it("recognises social links, and messages that are only a link", () => {
     expect(socialFromUrl("https://www.instagram.com/jaygadgets_ng/")).toEqual({ platform: "instagram", handle: "jaygadgets_ng" });
     expect(socialFromUrl("tiktok.com/@jay.gadgets")).toEqual({ platform: "tiktok", handle: "jay.gadgets" });
+    expect(socialFromUrl("https://twitter.com/jaygadgets")).toEqual({ platform: "x", handle: "jaygadgets" });
+    expect(socialFromUrl("x.com/@jaygadgets")).toEqual({ platform: "x", handle: "jaygadgets" });
     expect(socialFromUrl("https://jaygadgets.com")).toBeNull();
     expect(onlyLink("my site: jaygadgets.com")).toBe("jaygadgets.com");
     expect(onlyLink("Sold 2 shoes to David for 85k")).toBeNull();
@@ -18,7 +20,8 @@ describe("what BizBuddy learns about the business", () => {
   it("adds confirmed products newest first, and gives the AI names only, never prices", () => {
     const merged = mergeCatalog([{ name: "Bag", price: 5000 }], "", { description: "Laptops", products: [{ name: "MacBook", price: 450000 }, { name: "bag", price: 6000 }], source: "x" });
     expect(merged.catalog.map((p) => p.name)).toEqual(["MacBook", "bag"]);
-    const prompt = knowledgeForPrompt({ ...merged, socials: { instagram: "jay" } }).join(" ");
+    const prompt = knowledgeForPrompt({ ...merged, socials: { instagram: "jay", x: "jaygadgets" } }).join(" ");
+    expect(prompt).toContain("X (Twitter) @jaygadgets");
     expect(prompt).toContain("Products they list: MacBook, bag.");
     expect(prompt).toContain("Instagram @jay");
     expect(prompt).not.toContain("450");

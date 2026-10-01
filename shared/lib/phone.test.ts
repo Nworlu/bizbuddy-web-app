@@ -1,39 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { displayPhone, loginEmail, normalizeE164Digits, normalizePhone, normalizeWhatsAppSender, phoneFromLoginEmail, phoneFromParts } from "./phone";
+import { displayPhone, loginEmail, normalizePhone, normalizeWhatsAppSender, phoneFromLoginEmail } from "./phone";
 
 describe("normalizePhone", () => {
   it.each(["08031234567", "0803 123 4567", "+234 803 123 4567", "2348031234567", "8031234567", "0803-123-4567"])("reads %j as the same number", (input) => {
     expect(normalizePhone(input)).toBe("2348031234567");
   });
 
-  it.each(["", "0803123456", "080312345678", "02012345678", "abc"])("rejects %j", (input) => {
+  it.each(["", "0803123456", "080312345678", "02012345678", "12345678901", "abc"])("rejects %j", (input) => {
     expect(normalizePhone(input)).toBeNull();
   });
 
-  it("accepts international numbers with + or bare E.164", () => {
-    expect(normalizePhone("+44 7700 900123")).toBe("447700900123");
-    expect(normalizePhone("447700900123")).toBe("447700900123");
-  });
-});
-
-describe("normalizeE164Digits", () => {
-  it("reads WhatsApp senders without a plus", () => {
-    expect(normalizeWhatsAppSender("2348031234567")).toBe("2348031234567");
-    expect(normalizeWhatsAppSender("447700900123")).toBe("447700900123");
-  });
-
-  it("rejects numbers with no known calling code", () => {
-    expect(normalizeE164Digits("99999999")).toBeNull();
-  });
-});
-
-describe("phoneFromParts", () => {
-  it("builds a Nigerian number from the selector and national field", () => {
-    expect(phoneFromParts("234", "0803 123 4567")).toBe("2348031234567");
-  });
-
-  it("builds a UK number", () => {
-    expect(phoneFromParts("44", "7700 900123")).toBe("447700900123");
+  it("accepts other countries when a dial code is given", () => {
+    expect(normalizePhone("712 345 678", "254")).toBe("254712345678");
+    expect(normalizePhone("+44 7700 900123", "44")).toBe("447700900123");
   });
 });
 
@@ -62,18 +41,14 @@ describe("displayPhone", () => {
     expect(displayPhone("2348031234567")).toBe("0803 123 4567");
   });
 
-  it("shows international numbers with calling code", () => {
-    expect(displayPhone("447700900123")).toBe("+44 7700900123");
+  it("shows international numbers with a plus prefix", () => {
+    expect(displayPhone("254712345678")).toBe("+254 712345678");
   });
 });
 
 describe("phoneFromLoginEmail", () => {
   it("reads the number back out of a login address", () => {
     expect(phoneFromLoginEmail(loginEmail("2348031234567", "owner@gmail.com"))).toBe("2348031234567");
-  });
-
-  it("reads international numbers from login addresses", () => {
-    expect(phoneFromLoginEmail("owner+447700900123@gmail.com")).toBe("447700900123");
   });
 
   it("returns null for anything else", () => {

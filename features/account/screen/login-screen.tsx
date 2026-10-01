@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { accountErrorMessage, logIn } from "@/shared/lib/account";
 import { normalizePhone } from "@/shared/lib/phone";
+import { usePhoneField } from "@/shared/lib/use-phone-field";
 import { useBizData, useSyncMeta } from "@/shared/lib/store";
 import { accountsEnabled } from "@/shared/lib/supabase";
 import { Logo } from "@/shared/ui/logo";
@@ -15,7 +16,7 @@ export function LoginPage() {
   const data = useBizData();
   const meta = useSyncMeta();
   const again = meta !== null; // Signed out on a phone that's still linked: log in again, keep the books.
-  const [phone, setPhone] = useState(() => meta?.phone ?? "");
+  const phoneField = usePhoneField(meta?.phone ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -25,12 +26,12 @@ export function LoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!normalizePhone(phone)) return setError("Enter a valid phone number for the country you selected.");
+    if (!normalizePhone(phoneField.national, phoneField.dialCode)) return setError("Enter a valid phone number for the country you selected.");
     if (!password) return setError("Enter your password.");
     setSaving(true);
     setError(null);
     try {
-      const { hasShop } = await logIn({ phone, password });
+      const { hasShop } = await logIn({ phone: phoneField.national, password, dialCode: phoneField.dialCode });
       router.replace(hasShop ? "/dashboard" : "/welcome");
     } catch (e) {
       setSaving(false);
@@ -71,7 +72,13 @@ export function LoginPage() {
         <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
           <div>
             <label htmlFor="login-phone" className="mb-1.5 block text-sm font-medium text-ink">Phone number</label>
-            <PhoneInput id="login-phone" value={phone} onChange={setPhone} />
+            <PhoneInput
+              id="login-phone"
+              countryIso={phoneField.countryIso}
+              onCountryChange={phoneField.setCountry}
+              national={phoneField.national}
+              onNationalChange={phoneField.setNational}
+            />
           </div>
           <div>
             <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-ink">Password</label>

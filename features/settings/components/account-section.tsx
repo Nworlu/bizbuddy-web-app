@@ -11,12 +11,13 @@ import { accountErrorMessage, createAccount, logOut, MIN_PASSWORD, sendWhatsAppW
 import { WhatsAppOptIn } from "@/shared/ui/whatsapp-opt-in";
 import { formatDate } from "@/shared/lib/format";
 import { displayPhone, normalizePhone } from "@/shared/lib/phone";
+import { usePhoneField } from "@/shared/lib/use-phone-field";
+import { PhoneInput } from "@/shared/ui/phone-input";
 import { useSyncMeta } from "@/shared/lib/store";
 import { syncNow, useSyncStatus } from "@/shared/lib/sync-runner";
 import { showToast } from "@/shared/lib/toast";
 import type { BizData, Business } from "@/shared/lib/types";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
-import { PhoneInput } from "@/shared/ui/phone-input";
 
 /** Backing up to an account (not signed in yet), or the account's status and log-out (signed in). */
 export function AccountSection({ data, business }: { data: BizData; business: Business }) {
@@ -37,7 +38,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function BackUp({ business }: { business: Business }) {
-  const [phone, setPhone] = useState(business.phone ?? "");
+  const phoneField = usePhoneField(business.phone ?? "");
   const [password, setPassword] = useState("");
   const [whatsappWelcome, setWhatsappWelcome] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,12 +46,12 @@ function BackUp({ business }: { business: Business }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!normalizePhone(phone)) return setError("Enter a valid phone number for the country you selected.");
+    if (!normalizePhone(phoneField.national, phoneField.dialCode)) return setError("Enter a valid phone number for the country you selected.");
     if (password.length < MIN_PASSWORD) return setError(`Choose a password of at least ${MIN_PASSWORD} characters.`);
     setSaving(true);
     setError(null);
     try {
-      await createAccount({ phone, password });
+      await createAccount({ phone: phoneField.national, password, dialCode: phoneField.dialCode });
       if (whatsappWelcome) sendWhatsAppWelcome({ ownerName: business.ownerName, shopName: business.name });
       showToast(`Account created. ${business.name} is backing up.`);
     } catch (e) {
@@ -69,7 +70,13 @@ function BackUp({ business }: { business: Business }) {
       <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
         <div>
           <label htmlFor="backup-phone" className="mb-1.5 block text-sm font-medium text-ink">Phone number</label>
-          <PhoneInput id="backup-phone" value={phone} onChange={setPhone} />
+          <PhoneInput
+            id="backup-phone"
+            countryIso={phoneField.countryIso}
+            onCountryChange={phoneField.setCountry}
+            national={phoneField.national}
+            onNationalChange={phoneField.setNational}
+          />
         </div>
         <div>
           <label htmlFor="backup-password" className="mb-1.5 block text-sm font-medium text-ink">Choose a password</label>

@@ -7,12 +7,14 @@ import { accountsEnabled } from "@/shared/lib/supabase";
 import { showToast } from "@/shared/lib/toast";
 import { BUSINESS_TYPES, type BizData, type Business, type BusinessType } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { countryByIso } from "@/shared/lib/countries";
+import { formatPhoneField, normalizePhone } from "@/shared/lib/phone";
+import { usePhoneField } from "@/shared/lib/use-phone-field";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { PhoneInput } from "@/shared/ui/phone-input";
 import { AccountSection } from "../components/account-section";
 import { RemindersSection } from "../components/reminders-section";
 import { KnowledgeSection } from "../components/knowledge-section";
-import { normalizePhone } from "@/shared/lib/phone";
-import { PhoneInput } from "@/shared/ui/phone-input";
 
 export function SettingsPage() {
   const { data, business } = useBiz();
@@ -50,7 +52,7 @@ function BusinessSection({ business }: { business: Business }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(business.name);
   const [ownerName, setOwnerName] = useState(business.ownerName);
-  const [phone, setPhone] = useState(business.phone ?? "");
+  const phoneField = usePhoneField(business.phone ?? "");
   const [type, setType] = useState<BusinessType>(business.type);
   const [about, setAbout] = useState(business.about ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ function BusinessSection({ business }: { business: Business }) {
   function start() {
     setName(business.name);
     setOwnerName(business.ownerName);
-    setPhone(business.phone ?? "");
+    phoneField.reset(business.phone ?? "");
     setType(business.type);
     setAbout(business.about ?? "");
     setError(null);
@@ -69,9 +71,12 @@ function BusinessSection({ business }: { business: Business }) {
     event.preventDefault();
     if (!name.trim()) return setError("Enter your business name.");
     if (!ownerName.trim()) return setError("Enter your name.");
-    if (phone.trim() && !normalizePhone(phone)) return setError("Enter a valid phone number, or leave it empty.");
+    if (phoneField.national.trim() && !normalizePhone(phoneField.national, phoneField.dialCode)) {
+      return setError("Enter a valid phone number for the country you selected, or leave it empty.");
+    }
+    const phone = phoneField.national.trim() ? formatPhoneField(phoneField.national, countryByIso(phoneField.countryIso)) : "";
     try {
-      updateBusiness({ name, ownerName, phone: phone.trim() ? normalizePhone(phone) ?? phone.trim() : "", type, about });
+      updateBusiness({ name, ownerName, phone, type, about });
       showToast("Business details saved.");
       setEditing(false);
     } catch {
@@ -106,7 +111,13 @@ function BusinessSection({ business }: { business: Business }) {
           <input id="settings-owner-name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} autoComplete="name" className={inputClass} />
         </Field>
         <Field id="settings-phone" label="Phone">
-          <PhoneInput id="settings-phone" value={phone} onChange={setPhone} />
+          <PhoneInput
+            id="settings-phone"
+            countryIso={phoneField.countryIso}
+            onCountryChange={phoneField.setCountry}
+            national={phoneField.national}
+            onNationalChange={phoneField.setNational}
+          />
         </Field>
         <fieldset>
           <legend className="mb-1.5 block text-sm font-medium text-ink">Business type</legend>

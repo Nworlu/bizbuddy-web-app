@@ -38,8 +38,8 @@ function client() {
  * Creates an account for this phone's shop and starts backing it up. The shop must already exist on the
  * phone (a new one from setup, or books kept here before accounts). Needs internet.
  */
-export async function createAccount(input: { phone: string; password: string }) {
-  const phone = normalizePhone(input.phone);
+export async function createAccount(input: { phone: string; password: string; dialCode?: string }) {
+  const phone = normalizePhone(input.phone, input.dialCode);
   if (!phone) throw new Error("Invalid phone");
   const { data, error } = await client().auth.signUp({ email: loginEmail(phone), password: input.password, options: { data: { phone } } });
   if (error) throw error;
@@ -52,8 +52,8 @@ export async function createAccount(input: { phone: string; password: string }) 
  * Logs this phone into an account. A fresh phone gets the account's books on the next sync.
  * Signing back in on a phone that was already linked keeps its books and anything still waiting to send.
  */
-export async function logIn(input: { phone: string; password: string }): Promise<{ hasShop: boolean }> {
-  const phone = normalizePhone(input.phone);
+export async function logIn(input: { phone: string; password: string; dialCode?: string }): Promise<{ hasShop: boolean }> {
+  const phone = normalizePhone(input.phone, input.dialCode);
   if (!phone) throw new Error("Invalid phone");
   const current = getSyncMeta();
   if (current && current.phone !== phone) throw new Error("Another account is linked to this phone");

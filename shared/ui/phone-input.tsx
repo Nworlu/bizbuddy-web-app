@@ -1,95 +1,98 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { COUNTRIES, dialLabel, flagEmoji, type Country } from "@/shared/lib/countries";
-import { displayPhone, normalizePhone, phoneFromParts, splitPhone } from "@/shared/lib/phone";
+import { useId, type ReactNode } from "react";
+import { COUNTRIES, countryByIso, type Country } from "@/shared/lib/countries";
 
 type PhoneInputProps = {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
+  id?: string;
+  countryIso: string;
+  onCountryChange: (country: Country) => void;
+  national: string;
+  onNationalChange: (national: string) => void;
   readOnly?: boolean;
-  placeholder?: string;
-  hasError?: boolean;
-  autoComplete?: string;
+  disabled?: boolean;
+  className?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 };
 
-export function PhoneInput({ id, value, onChange, readOnly, placeholder, hasError, autoComplete = "tel" }: PhoneInputProps) {
-  const listId = useId();
-  const initial = splitPhone(value);
-  const [country, setCountry] = useState<Country>(initial.country);
-  const [national, setNational] = useState(initial.national);
+const fieldClass =
+  "w-full min-w-0 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-brand-700 focus:ring-2 focus:ring-brand-200 read-only:bg-stone-50 read-only:text-ink-muted disabled:opacity-60";
 
-  useEffect(() => {
-    const next = splitPhone(value);
-    setCountry(next.country);
-    setNational(next.national);
-  }, [value]);
-
-  function emit(iso: Country, nationalValue: string) {
-    const e164 = phoneFromParts(iso.dialCode, nationalValue);
-    onChange(e164 ?? nationalValue.trim());
-  }
-
-  function onCountryChange(iso: string) {
-    const next = COUNTRIES.find((c) => c.iso === iso) ?? country;
-    setCountry(next);
-    emit(next, national);
-  }
-
-  function onNationalChange(nextNational: string) {
-    setNational(nextNational);
-    emit(country, nextNational);
-  }
-
-  const fieldClass = `min-w-0 flex-1 rounded-xl border bg-white px-4 py-3 text-sm text-ink outline-none transition focus:ring-2 read-only:bg-stone-50 read-only:text-ink-muted ${
-    hasError ? "border-rose-400 focus:ring-rose-200" : "border-stone-200 focus:border-brand-700 focus:ring-brand-200"
-  }`;
-
-  const selectClass = `shrink-0 rounded-xl border bg-white py-3 pl-3 pr-8 text-sm font-medium text-ink outline-none transition focus:ring-2 ${
-    hasError ? "border-rose-400 focus:ring-rose-200" : "border-stone-200 focus:border-brand-700 focus:ring-brand-200"
-  }`;
-
-  const preview = normalizePhone(value) ? displayPhone(normalizePhone(value)!) : null;
+export function PhoneInput({
+  id: idProp,
+  countryIso,
+  onCountryChange,
+  national,
+  onNationalChange,
+  readOnly,
+  disabled,
+  className,
+  ...aria
+}: PhoneInputProps) {
+  const autoId = useId();
+  const id = idProp ?? autoId;
+  const country = countryByIso(countryIso);
 
   return (
-    <div className="space-y-1">
-      <div className="flex gap-2">
-        <label htmlFor={`${id}-country`} className="sr-only">
-          Country calling code
-        </label>
-        <select
-          id={`${id}-country`}
-          value={country.iso}
-          onChange={(e) => onCountryChange(e.target.value)}
-          disabled={readOnly}
-          className={selectClass}
-          aria-describedby={preview ? `${listId}-hint` : undefined}
-        >
-          {COUNTRIES.map((c) => (
-            <option key={c.iso} value={c.iso}>
-              {flagEmoji(c.iso)} {c.name} ({dialLabel(c)})
-            </option>
-          ))}
-        </select>
+    <div className={`flex gap-2 ${className ?? ""}`}>
+      <CountrySelect id={`${id}-country`} value={country.iso} onChange={(iso) => onCountryChange(countryByIso(iso))} disabled={disabled || readOnly} />
+      <div className="flex min-w-0 flex-1 items-stretch rounded-xl border border-stone-200 bg-white focus-within:border-brand-700 focus-within:ring-2 focus-within:ring-brand-200">
+        <span className="flex shrink-0 items-center border-r border-stone-200 px-3 text-sm font-medium text-ink-muted" aria-hidden>
+          +{country.dial}
+        </span>
         <input
           id={id}
           type="tel"
           inputMode="tel"
-          autoComplete={autoComplete}
+          autoComplete="tel-national"
           value={national}
           onChange={(e) => onNationalChange(e.target.value)}
+          placeholder={country.example}
           readOnly={readOnly}
-          placeholder={placeholder ?? (country.iso === "NG" ? "e.g. 0803 123 4567" : "Phone number")}
-          className={fieldClass}
-          aria-invalid={hasError}
+          disabled={disabled}
+          className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 text-sm text-ink outline-none"
+          {...aria}
         />
       </div>
-      {preview && (
-        <p id={`${listId}-hint`} className="text-xs text-ink-muted">
-          {dialLabel(country)} · {preview}
-        </p>
-      )}
+    </div>
+  );
+}
+
+function CountrySelect({ id, value, onChange, disabled }: { id: string; value: string; onChange: (iso: string) => void; disabled?: boolean }) {
+  return (
+    <div className="relative shrink-0">
+      <label htmlFor={id} className="sr-only">
+        Country
+      </label>
+      <select
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${fieldClass} w-[5.5rem] appearance-none pr-8 ${disabled ? "" : "cursor-pointer"}`}
+      >
+        {COUNTRIES.map((c) => (
+          <option key={c.iso} value={c.iso}>
+            {c.flag} {c.iso}
+          </option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-ink-muted" aria-hidden>
+        ▾
+      </span>
+    </div>
+  );
+}
+
+export function PhoneField({ id, label, hint, children }: { id: string; label: ReactNode; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-ink">
+        {label}
+      </label>
+      {children}
+      {hint}
     </div>
   );
 }

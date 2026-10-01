@@ -1,16 +1,14 @@
-import { adminConfigured, ADMIN_COOKIE, verifyAdminPassword } from "@/features/admin/server/auth";
+import { adminEnabled, setAdminSession } from "@/shared/lib/admin-session";
 
 export async function POST(request: Request) {
-  if (!adminConfigured()) return Response.json({ error: "Admin is not configured." }, { status: 503 });
-  let password = "";
-  try {
-    const body = (await request.json()) as { password?: string };
-    password = typeof body.password === "string" ? body.password : "";
-  } catch {
-    return Response.json({ error: "Bad request." }, { status: 400 });
+  if (!adminEnabled()) return Response.json({ ok: false, reason: "disabled" }, { status: 503 });
+
+  const body = (await request.json().catch(() => null)) as { password?: string } | null;
+  const password = body?.password ?? "";
+  if (!password || password !== process.env.ADMIN_PASSWORD) {
+    return Response.json({ ok: false }, { status: 401 });
   }
-  if (!verifyAdminPassword(password)) return Response.json({ error: "Wrong password." }, { status: 401 });
-  const response = Response.json({ ok: true });
-  response.headers.append("Set-Cookie", `${ADMIN_COOKIE}=${encodeURIComponent(process.env.ADMIN_SECRET!)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 12}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
-  return response;
+
+  const ok = await setAdminSession();
+  return ok ? Response.json({ ok: true }) : Response.json({ ok: false }, { status: 503 });
 }

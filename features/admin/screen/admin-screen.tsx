@@ -1,159 +1,139 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { displayPhone, normalizePhone } from "@/shared/lib/phone";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import type { AdminOverview } from "../server/overview";
 import { Logo } from "@/shared/ui/logo";
-import type { AdminBusinessRow } from "@/features/admin/server/overview";
 
-type Overview = { total: number; businesses: AdminBusinessRow[] };
+type AdminScreenProps =
+  | { mode: "disabled" }
+  | { mode: "login" }
+  | { mode: "ready"; overview: AdminOverview };
 
-export function AdminScreen() {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function AdminScreen(props: AdminScreenProps) {
+  const router = useRouter();
   const [password, setPassword] = useState("");
-  const [signingIn, setSigningIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/overview");
-      if (res.status === 401) {
-        setOverview(null);
-        return;
-      }
-      if (res.status === 503) {
-        setError("Admin is not configured. Set ADMIN_SECRET and SUPABASE_SECRET_KEY on the server.");
-        return;
-      }
-      if (!res.ok) throw new Error("Could not load overview.");
-      setOverview((await res.json()) as Overview);
-    } catch {
-      setError("Could not reach the admin API.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function login(event: React.FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    setSigningIn(true);
+    setSaving(true);
     setError(null);
-    try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(body?.error ?? "Could not sign in.");
-        return;
-      }
-      setPassword("");
-      await load();
-    } finally {
-      setSigningIn(false);
+    const response = await fetch("/api/admin/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    setSaving(false);
+    if (!response.ok) {
+      setError("Wrong password.");
+      return;
     }
+    setPassword("");
+    router.refresh();
   }
 
-  async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    setOverview(null);
+  async function logOut() {
+    await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
+    router.refresh();
   }
 
   return (
     <main className="min-h-screen bg-surface px-4 py-10">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-3xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Logo size="md" />
+            <Logo size="sm" />
             <div>
               <h1 className="text-xl font-bold text-ink">BizBuddy admin</h1>
-              <p className="text-sm text-ink-muted">Shops backed up to Supabase</p>
+              <p className="text-sm text-ink-muted">Operator dashboard — not part of the shop owner app.</p>
             </div>
           </div>
-          {overview && (
-            <button type="button" onClick={() => void logout()} className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-stone-50">
-              Sign out
+          {props.mode === "ready" && (
+            <button type="button" onClick={() => void logOut()} className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-stone-50">
+              Log out
             </button>
           )}
         </div>
 
-        {loading && !overview && !error && <p className="text-sm text-ink-muted">Loading…</p>}
-
-        {error && (
-          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-900">
-            {error}
-          </div>
+        {props.mode === "disabled" && (
+          <Panel title="Admin isn't configured">
+            <p className="text-sm text-ink-muted">
+              Set <code className="text-xs">ADMIN_PASSWORD</code> in the server environment, then reload this page.
+            </p>
+          </Panel>
         )}
 
-        {!loading && !overview && !error && (
-          <form onSubmit={login} className="mx-auto max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Sign in</h2>
-            <p className="mt-1 text-sm text-ink-muted">Use the admin password from your server environment.</p>
-            <label htmlFor="admin-password" className="mt-4 mb-1.5 block text-sm font-medium text-ink">
-              Password
-            </label>
-            <input
-              id="admin-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-200"
-            />
-            <button type="submit" disabled={signingIn || !password} className="mt-4 w-full rounded-xl bg-brand-700 py-3 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60">
-              {signingIn ? "Signing in…" : "Continue"}
-            </button>
-          </form>
+        {props.mode === "login" && (
+          <Panel title="Sign in">
+            <form onSubmit={submit} className="mt-4 max-w-sm space-y-4" noValidate>
+              <div>
+                <label htmlFor="admin-password" className="mb-1.5 block text-sm font-medium text-ink">
+                  Admin password
+                </label>
+                <input id="admin-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} autoComplete="current-password" />
+              </div>
+              {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
+              <button type="submit" disabled={saving} className="rounded-xl bg-brand-700 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60">
+                {saving ? "Checking…" : "Continue"}
+              </button>
+            </form>
+          </Panel>
         )}
 
-        {overview && (
-          <div className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Stat label="Total shops" value={String(overview.total)} />
-              <Stat label="Showing" value={String(overview.businesses.length)} />
-              <Stat label="Updated" value={new Date().toLocaleString()} />
-            </div>
+        {props.mode === "ready" && (
+          <div className="space-y-5">
+            <Panel title="Integrations">
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Status label="Supabase accounts" ok={props.overview.integrations.accounts} />
+                <Status label="Login mailbox" ok={props.overview.integrations.loginEmail} />
+                <Status label="Supabase secret key" ok={props.overview.integrations.supabaseSecret} />
+                <Status label="OpenAI" ok={props.overview.integrations.openai} />
+                <Status label="WhatsApp Cloud API" ok={props.overview.integrations.whatsapp} />
+                <Status label="Cron secret" ok={props.overview.integrations.cron} />
+                <Status label="Public app URL" ok={props.overview.integrations.appUrl} />
+              </ul>
+            </Panel>
 
-            <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-stone-100 bg-stone-50 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  <tr>
-                    <th className="px-4 py-3">Shop</th>
-                    <th className="hidden px-4 py-3 sm:table-cell">Owner</th>
-                    <th className="px-4 py-3">Phone</th>
-                    <th className="hidden px-4 py-3 md:table-cell">Type</th>
-                    <th className="hidden px-4 py-3 lg:table-cell">Created</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {overview.businesses.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-ink-muted">
-                        No businesses yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    overview.businesses.map((row) => (
-                      <tr key={row.id} className="hover:bg-stone-50/80">
-                        <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
-                        <td className="hidden px-4 py-3 text-ink-muted sm:table-cell">{row.owner_name}</td>
-                        <td className="px-4 py-3 text-ink-muted">{formatPhoneCell(row.phone)}</td>
-                        <td className="hidden px-4 py-3 text-ink-muted md:table-cell">{row.type}</td>
-                        <td className="hidden px-4 py-3 text-ink-muted lg:table-cell">{new Date(row.created_at).toLocaleDateString()}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <Panel title="Platform totals">
+              {props.overview.counts.businesses === null ? (
+                <p className="text-sm text-ink-muted">
+                  Counts need <code className="text-xs">SUPABASE_SECRET_KEY</code> and a reachable Supabase project.
+                </p>
+              ) : (
+                <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <Stat label="Shops" value={props.overview.counts.businesses} />
+                  <Stat label="Customers" value={props.overview.counts.customers} />
+                  <Stat label="Sales rows" value={props.overview.counts.sales} />
+                  <Stat label="Expense rows" value={props.overview.counts.expenses} />
+                </dl>
+              )}
+            </Panel>
+
+            {props.overview.recentBusinesses.length > 0 && (
+              <Panel title="Recent shops">
+                <ul className="divide-y divide-stone-100">
+                  {props.overview.recentBusinesses.map((shop) => (
+                    <li key={`${shop.name}-${shop.createdAt}`} className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm">
+                      <span>
+                        <span className="font-medium text-ink">{shop.name}</span>
+                        <span className="text-ink-muted"> · {shop.ownerName}</span>
+                      </span>
+                      <span className="text-xs text-ink-muted">{new Date(shop.createdAt).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+
+            <p className="text-center text-xs text-ink-muted">
+              <Link href="/" className="font-medium text-brand-700 hover:text-brand-800">
+                Back to BizBuddy
+              </Link>
+            </p>
           </div>
         )}
       </div>
@@ -161,17 +141,31 @@ export function AdminScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-ink">{value}</p>
+    <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 className="text-sm font-semibold text-ink">{title}</h2>
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
+function Status({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <li className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm ${ok ? "bg-emerald-50 text-emerald-900" : "bg-stone-50 text-ink-muted"}`}>
+      <span>{label}</span>
+      <span className="font-medium">{ok ? "Ready" : "Missing"}</span>
+    </li>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div>
+      <dt className="text-xs text-ink-muted">{label}</dt>
+      <dd className="text-2xl font-bold text-ink">{value ?? "—"}</dd>
     </div>
   );
 }
 
-function formatPhoneCell(phone: string): string {
-  if (!phone.trim()) return "—";
-  const normalized = normalizePhone(phone);
-  return normalized ? displayPhone(normalized) : phone;
-}
+const inputClass = "w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-200";

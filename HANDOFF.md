@@ -103,8 +103,8 @@ app/
   (app)/expenses/new/page.tsx  Record Expense
   (app)/expenses/edit/page.tsx edit or delete an expense (?id=), same form as Record Expense
   manifest.ts, apple-icon.png  install on the home screen (icons in public/)
-  (app)/ask/page.tsx           Tell BizBuddy chat; reads ?q= from the dashboard (Suspense for useSearchParams)
-  api/tell/route.ts            POST: the AI reads a note (signed-in users only)
+  (app)/ask/page.tsx           Tell BizBuddy chat; follows the last few lines; reads ?q= from the dashboard (Suspense for useSearchParams)
+  api/tell/route.ts            POST: the AI reads a note (signed-in users only), with the recent chat and whether socials are saved
   api/whatsapp/route.ts        WhatsApp Cloud API webhook: GET verify, POST signed messages, with the recent chat and what this shop has already confirmed
   api/whatsapp/welcome/route.ts  POST: sends the signed-in owner the WhatsApp welcome template, once per account
   api/tell/learn/route.ts      POST: what the owner did with a draft (saved / corrected / cancelled / undone / auto); remembers it, counts toward auto-save
@@ -194,7 +194,7 @@ A feature holds `screen/`, and `components/`, `hooks/`, `types/`, `content/`, or
 
      The secret key (`SUPABASE_SECRET_KEY`) is for server routes only (WhatsApp). Never use it in browser code.
    - Password reset isn't built: "Forgot your password?" says to contact BizBuddy. Resetting means changing it in the Supabase dashboard (Authentication → Users).
-22. **Tell BizBuddy** (`/ask`, `features/tell/`). The owner types a note ("Sold 2 shoes to David for 85k, he paid 50k"); `POST /api/tell` sends it to an AI model and gets back actions: sale, expense, payment, question, or unclear. **Provider:** OpenAI only (`OPENAI_API_KEY`, model `OPENAI_MODEL`, default `gpt-5.4-mini`, low reasoning effort, strict JSON schema) in `features/tell/server/interpret.ts`. The same reader is what WhatsApp will call. There is no Claude fallback.
+22. **Tell BizBuddy** (`/ask`, `features/tell/`). The owner types a note ("Sold 2 shoes to David for 85k, he paid 50k"); `POST /api/tell` sends it to an AI model and gets back actions: sale, expense, payment, question, or unclear. **Provider:** OpenAI only (`OPENAI_API_KEY`, model `OPENAI_MODEL`, default `gpt-5.4-mini`, low reasoning effort, strict JSON schema) in `features/tell/server/interpret.ts`. The same reader is what WhatsApp will call. There is no Claude fallback. The chat follows the last few lines (`features/tell/lib/talk.ts`, kept on this phone as `bizbuddy:tell-thread`). "What of today?", "break it down", and "are you connected to my socials?" are answered the same way as on WhatsApp, from the books and the saved handles. Those lines also go with the next note, so anything else stays in the conversation.
    - **The AI only reads; the app decides.** It never sees the books, only the note, today's date, and customer names (to match "David" to "David Okafor"). It never calculates: a unit price and quantity come back as said, and `toDraft()` works out the total. Questions come back as a topic and `answerTopic()` answers from `finance.ts`.
    - Every sale, expense, or payment is shown as an editable **draft card**; nothing is saved until Save, which uses the normal store functions and rules.
    - Needs a signed-in account (the route checks the Supabase access token, so strangers can't spend the AI key) and a connection. Offline or without an account, the screen falls back to the keyword question matcher (`answerQuestion()`).

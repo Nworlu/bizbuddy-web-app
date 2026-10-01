@@ -16,6 +16,9 @@ import { dueFrom, type Reminder } from "@/features/reminders/lib/when";
 import { AUTO_SAVE_AFTER, needsAsking, type Undo } from "../lib/autosave";
 import { eitherDrafts, toDraft, type Draft, type Interpretation } from "../lib/intents";
 import { canTell, setAutoSave, TellError, tellBizBuddy } from "../lib/client";
+import { getKnowledge } from "../lib/knowledge-client";
+import type { Socials } from "../lib/knowledge";
+import { loadThread, localTalk, remember, rememberedReply, saveThread, threadPrompt, transcript, type Turn } from "../lib/talk";
 
 type Reply =
   | { kind: "pending" }
@@ -54,7 +57,7 @@ function repliesFor(result: Interpretation & { autoSave?: boolean }, note: strin
 }
 
 function readReplies(result: Interpretation): Reply[] {
-  if (result.actions.length === 0) return [{ kind: "text", text: "I didn't catch anything to record. Try: “Sold 2 shoes to David for 85k, he paid 50k”." }];
+  if (result.actions.length === 0) return [{ kind: "text", text: "Say that once more, the way you mean it." }];
   return result.actions.flatMap((action): Reply[] => {
     if (action.kind === "question") return [{ kind: "answer", answer: answerTopic(action.topic, action.customer, action.period, getBizData()) }];
     if (action.kind === "unclear") return [{ kind: "text", text: action.reply }];
@@ -87,6 +90,8 @@ export function TellPage() {
   const params = useSearchParams();
   const nextId = useRef(1);
   const startedFirst = useRef(false);
+  const turns = useRef<Turn[]>([]);
+  const socials = useRef<Socials | null>(canTell() ? null : {});
   const firstNote = params.get("q")?.trim().slice(0, MAX) ?? "";
   // A note sent from the dashboard (?q=…) shows straight away; if Claude reads it, its reply follows.
   const [messages, setMessages] = useState<Message[]>(() =>
@@ -112,17 +117,51 @@ export function TellPage() {
   const latest = messages[messages.length - 1]?.id;
   const forgotten = unsettled.filter((key) => Number(key.split(":")[0]) !== latest);
 
+  function keep(text: string, replies: Reply[]) {
+    const parts = replies.map((reply) => {
+      if (reply.kind === "text" || reply.kind === "error" || reply.kind === "auto") return reply.text;
+      if (reply.kind === "answer") return reply.answer.text;
+      if (reply.kind === "reminder") return `I'll remind you: ${reply.text}`;
+      if (reply.kind === "draft") return "Shown for you to save.";
+      return "";
+    });
+    turns.current = remember(turns.current, text, rememberedReply(parts));
+    saveThread(business.id, turns.current);
+  }
+
   function read(id: number, text: string) {
-    tellBizBuddy(text, getBizData())
-      .then((result) => resolve(id, repliesFor(result, text)))
+    tellBizBuddy(text, getBizData(), threadPrompt(turns.current))
+      .then((result) => {
+        const replies = repliesFor(result, text);
+        keep(text, replies);
+        resolve(id, replies);
+      })
       .catch((error) => resolve(id, [{ kind: "error", text: error instanceof TellError ? error.message : "BizBuddy couldn't read that just now. Try again." }]));
   }
 
   useEffect(() => {
+    const saved = loadThread(business.id);
+    turns.current = saved;
+    if (!firstNote && saved.length > 0) {
+      const prior = transcript(saved);
+      nextId.current = Math.max(nextId.current, prior.length);
+      setMessages((current) => (current.length > 0 ? current : prior.map((line, index) => ({ id: index, text: line.text, replies: line.reply ? [{ kind: "text" as const, text: line.reply }] : [] }))));
+    }
+    if (canTell()) getKnowledge().then((known) => { socials.current = known.socials; }).catch(() => { socials.current = {}; });
+  }, [business.id, firstNote]);
+
+  useEffect(() => {
     if (!firstNote || startedFirst.current || !canTell()) return;
     startedFirst.current = true;
+    const local = localTalk(firstNote, turns.current, getBizData(), socials.current, new Date());
+    if (local) {
+      turns.current = local.turns;
+      saveThread(business.id, turns.current);
+      resolve(0, local.answer ? [{ kind: "answer", answer: local.answer }] : [{ kind: "text", text: local.text }]);
+      return;
+    }
     read(0, firstNote);
-    // Runs once for the note from the dashboard.
+    // Runs once for the note from the dashboard. The thread is loaded in the effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -139,8 +178,18 @@ export function TellPage() {
     const text = raw.trim().slice(0, MAX);
     if (!text) return;
     const id = nextId.current++;
+    const local = localTalk(text, turns.current, getBizData(), canTell() ? socials.current : {}, new Date());
+    if (local) {
+      turns.current = local.turns;
+      saveThread(business.id, turns.current);
+      setMessages((current) => [...current, { id, text, replies: local.answer ? [{ kind: "answer", answer: local.answer }] : [{ kind: "text", text: local.text }] }]);
+      setInput("");
+      return;
+    }
     const live = canTell();
-    setMessages((current) => [...current, { id, text, replies: live ? [{ kind: "pending" }] : offlineReplies(text) }]);
+    const replies = live ? [{ kind: "pending" as const }] : offlineReplies(text);
+    if (!live) keep(text, replies);
+    setMessages((current) => [...current, { id, text, replies }]);
     setInput("");
     if (live) read(id, text);
   }
@@ -173,7 +222,7 @@ export function TellPage() {
       <div role="log" aria-live="polite" aria-label="Notes and replies" className="space-y-4">
         <Bubble from="bizbuddy">
           <p>
-            Hi {business.ownerName}. {readsNotes ? "Tell me what happened in your own words, like “Sold 2 shoes to David for 85k, he paid 50k”. Each note you save teaches me this shop. I'll show you what I understood before anything is saved." : "Ask me how much you sold, what came in, or what you spent."}
+            Hi {business.ownerName}. {readsNotes ? "Talk to me the way you talk. A sale, what you spent, or how the day went. I'll show you what I understood before anything is saved." : "Ask me how much you sold, what came in, or what you spent. A short follow-up stays on the last thing you asked."}
           </p>
         </Bubble>
         {messages.map((message) => (
@@ -185,7 +234,7 @@ export function TellPage() {
               <Bubble key={i} id={`reply-${message.id}-${i}`} from="bizbuddy" wide={reply.kind === "draft"}>
                 {reply.kind === "pending" && <p className="text-ink-muted">Reading…</p>}
                 {reply.kind === "error" && <p className="text-rose-700">{reply.text}</p>}
-                {reply.kind === "text" && <p>{reply.text}</p>}
+                {reply.kind === "text" && <p className="whitespace-pre-wrap">{reply.text}</p>}
                 {reply.kind === "answer" && <AnswerView answer={reply.answer} onAsk={send} />}
                 {reply.kind === "draft" && <DraftCard draft={reply.draft} data={data} note={message.text} counts={reply.counts} onOffer={() => offerAutoSave(message.id)} onSettled={() => settled(`${message.id}:${i}`)} />}
                 {reply.kind === "auto" && <AutoSavedCard done={{ text: reply.text, href: reply.href }} undo={reply.undo} note={message.text} />}

@@ -15,8 +15,8 @@ export function canTell(): boolean {
 
 export class TellError extends Error {}
 
-/** Sends the note to /api/tell. Only customer names go with it, to match "David" to "David Okafor"; never the books. */
-export async function tellBizBuddy(message: string, data: BizData): Promise<Interpretation & { autoSave: boolean }> {
+/** Sends the note to /api/tell. Only customer names go with it, to match "David" to "David Okafor"; never the books. The recent chat goes too, so a follow-up stays on the last thing said. */
+export async function tellBizBuddy(message: string, data: BizData, thread: string | null = null): Promise<Interpretation & { autoSave: boolean }> {
   const session = (await supabase()?.auth.getSession())?.data.session;
   if (!session) throw new TellError("Log in again to use Tell BizBuddy.");
   let response: Response;
@@ -29,6 +29,7 @@ export async function tellBizBuddy(message: string, data: BizData): Promise<Inte
         today: today(),
         weekday: new Date().toLocaleDateString("en-NG", { weekday: "long" }),
         customers: data.customers.map((c) => c.name),
+        ...(thread ? { thread } : {}),
       }),
     });
   } catch {

@@ -10,6 +10,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { interpret, TellBusyError, TellRefusedError, tellProvider } from "@/features/tell/server/interpret";
 import { memoryFor } from "@/features/tell/server/memory";
+import { aboutSocials } from "@/features/tell/lib/knowledge";
 import { lagosClock } from "@/features/reminders/lib/when";
 
 const MAX_MESSAGE = 600;
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
   if (!userId) return reply(401, "Log in to use Tell BizBuddy.");
   if (!withinLimit(userId)) return reply(429, "That's a lot of notes in a short time. Wait a few minutes, then try again.");
 
-  let body: { message?: unknown; today?: unknown; weekday?: unknown; customers?: unknown };
+  let body: { message?: unknown; today?: unknown; weekday?: unknown; customers?: unknown; thread?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -67,9 +68,22 @@ export async function POST(request: Request) {
   if (!today) return reply(400, "Bad request.");
 
   try {
-    const { profile, prompt, autoSave } = await memoryFor(token);
-    const chatWith = profile ? `The owner is writing in the BizBuddy app. ${profile}` : null;
-    const result = await interpret({ message, today, weekday, time: lagosClock(new Date()).time, customers, chatWith, memory: prompt });
+    const { profile, prompt, autoSave, socials } = await memoryFor(token);
+    const known = aboutSocials(message, socials);
+    if (known) return Response.json({ actions: [{ kind: "unclear", reply: known }], autoSave: false });
+    const thread = typeof body.thread === "string" ? body.thread.slice(0, 2500) : null;
+    const noSocials = Object.values(socials).some(Boolean) ? null : "No social accounts are saved for this shop yet. If they ask, say they aren't connected yet. Never invent a handle.";
+    const chatWith = `The owner is writing in Tell BizBuddy. Talk with them like a person. Answer what they just said. Don't greet them. Don't offer a menu.${profile ? ` ${profile}` : ""}`;
+    const result = await interpret({
+      message,
+      today,
+      weekday,
+      time: lagosClock(new Date()).time,
+      customers,
+      chatWith,
+      memory: [prompt, noSocials].filter(Boolean).join("\n") || null,
+      thread,
+    });
     // With auto-save on, the app saves drafts that are safe to (features/tell/lib/autosave.ts) without asking.
     return Response.json({ ...result, autoSave: autoSave === "on" });
   } catch (error) {

@@ -11,6 +11,9 @@ export const SHOP_TABLES = ["customers", "sales", "payments", "expenses", "shop_
 /** Rows keyed only by the owner's phone, with no shop id. */
 export const PHONE_ONLY_TABLES = ["whatsapp_chats", "whatsapp_thread"] as const;
 
+/** Rows keyed by the auth user, including the welcome record that stores their phone. */
+export const USER_TABLES = ["whatsapp_welcomes"] as const;
+
 export type AccountAdmin = {
   /** The shop this login owns, or null if they never finished setup. */
   businessId(userId: string): Promise<string | null>;
@@ -21,6 +24,7 @@ export type AccountAdmin = {
   /** Every stored WhatsApp message id. Empty when that table is not there yet. */
   seenMessageIds(): Promise<string[]>;
   deleteSeenMessages(ids: string[]): Promise<void>;
+  deleteUserRows(table: string, userId: string): Promise<"ok" | "missing">;
   deleteUser(userId: string): Promise<void>;
 };
 
@@ -54,5 +58,8 @@ export async function removeAccount(userId: string, phone: string | null, admin:
     const mine = (await admin.seenMessageIds()).filter((id) => messageBelongsToPhone(id, phone));
     if (mine.length > 0) await admin.deleteSeenMessages(mine);
   }
+  // The shop row is the settings record: name, owner, phone, type, and what the shop does.
+  // Reminder choices, check-ins, and saved pages live in shop_memory, already cleared above.
+  for (const table of USER_TABLES) await admin.deleteUserRows(table, userId);
   await admin.deleteUser(userId);
 }

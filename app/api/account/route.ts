@@ -61,6 +61,12 @@ export async function DELETE(request: Request) {
         const { error: rowError } = await admin.from("whatsapp_messages").delete().in("id", ids);
         if (rowError) throw rowError;
       },
+      async deleteUserRows(table, userId) {
+        const { error: rowError } = await admin.from(table).delete().eq("user_id", userId);
+        if (!rowError) return "ok";
+        if (missing(rowError.code)) return "missing";
+        throw rowError;
+      },
       async deleteUser(userId) {
         const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
         if (deleteError) throw deleteError;

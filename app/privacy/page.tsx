@@ -43,7 +43,7 @@ export default function PrivacyPage() {
           Logging out removes the books from this phone. The account keeps its copy. If a change has not reached the account yet, logging out drops that change. Settings says so before you log out.
         </p>
         <p>
-          Delete everything in Settings removes the shop from this phone. That button is hidden while you are signed in, because it would wipe the account&apos;s books. Delete account, in Settings while you are signed in, removes the account and everything saved with it: the shop, its sales, payments, expenses, customers, reminders, lessons, and WhatsApp chat. The books and the Tell BizBuddy chat are cleared from this phone too. It cannot be undone.
+          Delete everything in Settings removes the shop from this phone. That button is hidden while you are signed in, because it would wipe the account&apos;s books. Delete account, in Settings while you are signed in, removes the account and everything saved with it: the settings (business name, your name, phone, and what the shop does), sales, payments, expenses, customers, reminders, lessons, and WhatsApp chat. The settings, the books, and the Tell BizBuddy chat are cleared from this phone too. It cannot be undone.
         </p>
       </section>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { messageBelongsToPhone, PHONE_ONLY_TABLES, removeAccount, SHOP_TABLES, type AccountAdmin } from "./delete-account";
+import { messageBelongsToPhone, PHONE_ONLY_TABLES, removeAccount, SHOP_TABLES, USER_TABLES, type AccountAdmin } from "./delete-account";
 
 const PHONE = "2348112959740";
 
@@ -26,6 +26,10 @@ function admin(overrides: Partial<AccountAdmin> = {}): AccountAdmin & { calls: s
     deleteSeenMessages: async (ids) => {
       calls.push(`seen ${ids.join(",")}`);
     },
+    deleteUserRows: async (table, userId) => {
+      calls.push(`user-rows ${table} ${userId}`);
+      return "ok";
+    },
     deleteUser: async (userId) => {
       calls.push(`user ${userId}`);
     },
@@ -47,6 +51,7 @@ describe("removeAccount", () => {
       "shop-row shop-1",
       ...PHONE_ONLY_TABLES.map((table) => `phone ${table} ${PHONE}`),
       `seen ${messageIdFor(PHONE)}`,
+      ...USER_TABLES.map((table) => `user-rows ${table} user-1`),
       "user user-1",
     ]);
   });
@@ -56,7 +61,7 @@ describe("removeAccount", () => {
       businessId: async () => null,
     });
     await removeAccount("user-1", null, fake);
-    expect(fake.calls).toEqual(["user user-1"]);
+    expect(fake.calls).toEqual([...USER_TABLES.map((table) => `user-rows ${table} user-1`), "user user-1"]);
   });
 
   it("keeps going when a phone-only table is not there yet", async () => {
@@ -66,7 +71,7 @@ describe("removeAccount", () => {
       seenMessageIds: async () => [],
     });
     await removeAccount("user-1", PHONE, fake);
-    expect(fake.calls).toEqual(["user user-1"]);
+    expect(fake.calls).toEqual([...USER_TABLES.map((table) => `user-rows ${table} user-1`), "user user-1"]);
   });
 
   it("stops when the user cannot be deleted", async () => {

@@ -161,7 +161,7 @@ function SignedIn({ phone }: { phone: string }) {
         className="mt-1 block w-full rounded-xl bg-rose-50 px-4 py-3 text-left hover:bg-rose-100"
       >
         <span className="block text-sm font-medium text-rose-700">Delete account</span>
-        <span className="block text-xs text-rose-700/80">Remove this account and everything saved with it.</span>
+        <span className="block text-xs text-rose-700/80">Remove this account, its settings, and everything saved with it.</span>
       </button>
 
       <ConfirmDialog
@@ -193,7 +193,7 @@ function SignedIn({ phone }: { phone: string }) {
         error={deleteError}
       >
         <p>
-          This deletes the account for {displayPhone(phone)} and everything saved with it: the shop, sales, payments, expenses, customers, reminders, and what BizBuddy remembered, including the WhatsApp chat. It is removed from this phone too. It can&apos;t be undone.
+          This deletes the account for {displayPhone(phone)} and everything saved with it: the settings (business name, your name, phone, and what the shop does), sales, payments, expenses, customers, reminders, and what BizBuddy remembered, including the WhatsApp chat. Those settings are removed from this phone too. It can&apos;t be undone.
         </p>
         {waiting > 0 && <p>{waiting === 1 ? "1 change on this phone hasn't" : `${waiting} changes on this phone haven't`} been backed up. Those go too.</p>}
       </ConfirmDialog>

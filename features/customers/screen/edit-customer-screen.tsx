@@ -8,7 +8,11 @@ import { showToast } from "@/shared/lib/toast";
 import type { BizData, Customer } from "@/shared/lib/types";
 import { useBiz } from "@/features/shell/hooks/use-biz";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
+import { countryByIso } from "@/shared/lib/countries";
+import { formatPhoneField, normalizePhone } from "@/shared/lib/phone";
+import { usePhoneField } from "@/shared/lib/use-phone-field";
 import { routes } from "@/shared/lib/routes";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 /** Route entry: the id comes from ?id= so the page is static and opens offline. Keyed so forms reset between records. */
 export function EditCustomerRoute() {
@@ -37,7 +41,7 @@ export function EditCustomerPage({ id }: { id: string }) {
 function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; data: BizData; onDeleted: () => void }) {
   const router = useRouter();
   const [name, setName] = useState(customer.name);
-  const [phone, setPhone] = useState(customer.phone);
+  const phoneField = usePhoneField(customer.phone);
   const [errors, setErrors] = useState<{ name?: string; phone?: string; form?: string }>({});
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -50,13 +54,17 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
     const clash = name.trim() ? findCustomerByName(data, name) : undefined;
     const next = {
       name: !name.trim() ? "Enter the customer's name." : clash && clash.id !== customer.id ? `${clash.name} is already a customer.` : undefined,
-      phone: phone.trim() && phone.replace(/\D/g, "").length < 10 ? "Enter a phone number like 08012345678, or leave it empty." : undefined,
+      phone:
+        phoneField.national.trim() && !normalizePhone(phoneField.national, phoneField.dialCode)
+          ? "Enter a valid phone number for the country you selected, or leave it empty."
+          : undefined,
     };
     setErrors(next);
     if (next.name || next.phone) return;
 
     setSaving(true);
     try {
+      const phone = phoneField.national.trim() ? formatPhoneField(phoneField.national, countryByIso(phoneField.countryIso)) : "";
       updateCustomer({ customerId: customer.id, name, phone });
       showToast("Customer updated.");
       router.push(routes.customer(customer.id));
@@ -104,17 +112,14 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
           <label htmlFor="edit-customer-phone" className="mb-1.5 block text-sm font-medium text-ink">
             Phone <span className="font-normal text-ink-muted">(optional)</span>
           </label>
-          <input
+          <PhoneInput
             id="edit-customer-phone"
-            type="tel"
-            inputMode="tel"
-            value={phone}
-            onChange={(e) => { setPhone(e.target.value); setErrors({}); }}
-            placeholder="e.g. 08012345678"
-            autoComplete="off"
+            countryIso={phoneField.countryIso}
+            onCountryChange={(c) => { phoneField.setCountry(c); setErrors({}); }}
+            national={phoneField.national}
+            onNationalChange={(value) => { phoneField.setNational(value); setErrors({}); }}
             aria-invalid={!!errors.phone}
             aria-describedby={errors.phone ? "edit-customer-phone-error" : undefined}
-            className={fieldClass(!!errors.phone)}
           />
           {errors.phone && <p id="edit-customer-phone-error" className="mt-1 text-xs text-rose-700">{errors.phone}</p>}
         </div>

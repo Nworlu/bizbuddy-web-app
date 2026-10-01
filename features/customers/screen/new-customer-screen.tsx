@@ -6,13 +6,17 @@ import { useState, type FormEvent } from "react";
 import { addCustomer, findCustomerByName } from "@/shared/lib/store";
 import { showToast } from "@/shared/lib/toast";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { countryByIso } from "@/shared/lib/countries";
+import { formatPhoneField, normalizePhone } from "@/shared/lib/phone";
+import { usePhoneField } from "@/shared/lib/use-phone-field";
 import { routes } from "@/shared/lib/routes";
+import { PhoneInput } from "@/shared/ui/phone-input";
 
 export function NewCustomerPage() {
   const { data } = useBiz();
   const router = useRouter();
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const phoneField = usePhoneField("");
   const [errors, setErrors] = useState<{ name?: string; phone?: string; form?: string }>({});
   const [saving, setSaving] = useState(false);
 
@@ -20,16 +24,19 @@ export function NewCustomerPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const digits = phone.replace(/\D/g, "");
     const next = {
       name: !name.trim() ? "Enter the customer's name." : existing ? `${existing.name} is already a customer.` : undefined,
-      phone: phone.trim() && digits.length < 10 ? "Enter a phone number like 08012345678, or leave it empty." : undefined,
+      phone:
+        phoneField.national.trim() && !normalizePhone(phoneField.national, phoneField.dialCode)
+          ? "Enter a valid phone number for the country you selected, or leave it empty."
+          : undefined,
     };
     setErrors(next);
     if (next.name || next.phone) return;
 
     setSaving(true);
     try {
+      const phone = phoneField.national.trim() ? formatPhoneField(phoneField.national, countryByIso(phoneField.countryIso)) : "";
       const customer = addCustomer({ name, phone });
       showToast(`${customer.name} added.`);
       router.push(routes.customer(customer.id));
@@ -72,17 +79,14 @@ export function NewCustomerPage() {
           <label htmlFor="new-customer-phone" className="mb-1.5 block text-sm font-medium text-ink">
             Phone <span className="font-normal text-ink-muted">(optional)</span>
           </label>
-          <input
+          <PhoneInput
             id="new-customer-phone"
-            type="tel"
-            inputMode="tel"
-            value={phone}
-            onChange={(event) => { setPhone(event.target.value); setErrors({}); }}
-            placeholder="e.g. 08012345678"
-            autoComplete="off"
+            countryIso={phoneField.countryIso}
+            onCountryChange={(c) => { phoneField.setCountry(c); setErrors({}); }}
+            national={phoneField.national}
+            onNationalChange={(value) => { phoneField.setNational(value); setErrors({}); }}
             aria-invalid={!!errors.phone}
             aria-describedby={errors.phone ? "new-customer-phone-error" : undefined}
-            className={fieldClass(!!errors.phone)}
           />
           {errors.phone && <p id="new-customer-phone-error" className="mt-1 text-xs text-rose-700">{errors.phone}</p>}
         </div>

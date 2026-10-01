@@ -10,6 +10,8 @@ import type { ChatWith } from "./person";
 
 const OWNER = "2348031234567";
 const BUSY = new Error("busy");
+/** Noon in Lagos (UTC+1) on 30 Sep 2026 — fixed so tests don't depend on the runner's time zone. */
+const NOON_LAGOS = new Date("2026-09-30T11:00:00Z");
 
 /** A pretend server: one shop's books, the WhatsApp tables, and a scripted AI. */
 function world() {
@@ -80,7 +82,7 @@ function world() {
       problem: (error) => (error instanceof Error && error.message === "not a page" ? "That link isn't a web page I can read." : null),
     },
     appUrl: "https://bizbuddy.example",
-    now: () => new Date(2026, 8, 30, 12),
+    now: () => new Date(NOON_LAGOS),
   };
 
   let n = 0;
@@ -105,10 +107,23 @@ const sale = (over: Partial<Extract<Action, { kind: "sale" }>> = {}): Action => 
   kind: "sale", customer: "David Okafor", product: "Cap", quantity: null, unit_price: null, total_amount: 10000, amount_paid: 4000, method: null, date: null, ...over,
 });
 
-beforeEach(() => vi.useFakeTimers({ now: new Date(2026, 8, 30, 12), toFake: ["Date"] }));
+beforeEach(() => vi.useFakeTimers({ now: NOON_LAGOS, toFake: ["Date"] }));
 afterEach(() => vi.useRealTimers());
 
 describe("who is chatting", () => {
+  it("accepts international WhatsApp numbers when the account exists", async () => {
+    const uk = "447700900123";
+    const w = world();
+    w.deps.whoIsChatting = async (phone) =>
+      phone === uk
+        ? { chat: { kind: "owner", name: "Ada", shop: "Ada's Fashion", businessId: "shop-1", about: null }, books: w.books() }
+        : { chat: { kind: "unknown", profileName: null }, books: null };
+    w.script([sale()]);
+    await w.say("Sold a cap for 10k", uk);
+    expect(w.sent.length).toBeGreaterThan(0);
+    expect(w.sent[0].body).not.toContain("couldn't read your phone");
+  });
+
   it("tells a number without an account how to sign up, and never reads the note", async () => {
     const w = world();
     await w.say("Sold shoes", "2348099999999");
@@ -425,7 +440,7 @@ describe("reminders the owner sets", () => {
     w.script([remind({ date: null, time: null, in_minutes: 120 })]);
     await w.say("Remind me in 2 hours to call the supplier");
     expect(w.asked[0].time).toBe("12:00");
-    expect(w.reminders()[0].dueAt).toBe(new Date(2026, 8, 30, 14).toISOString());
+    expect(w.reminders()[0].dueAt).toBe("2026-09-30T13:00:00.000Z");
   });
 
   it("asks when, if no time was said, and reads the answer with the note", async () => {

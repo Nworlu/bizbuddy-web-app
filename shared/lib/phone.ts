@@ -41,6 +41,15 @@ function normalizeNigerianPhone(digits: string, raw: string): string | null {
   return `234${national}`;
 }
 
+/** WhatsApp webhooks send the sender as E.164 digits without a leading plus. */
+export function normalizeWhatsAppSender(from: string): string | null {
+  const digits = from.replace(/\D/g, "");
+  if (!digits || digits.length < 8 || digits.length > 15) return null;
+  const nigeria = normalizeNigerianPhone(digits, from);
+  if (nigeria) return nigeria;
+  return splitE164(digits) ? digits : null;
+}
+
 /** The private login address for a normalized phone number: the mailbox with +<phone> added. */
 export function loginEmail(normalizedPhone: string, mailbox = process.env.NEXT_PUBLIC_LOGIN_EMAIL): string {
   const [local, domain] = (mailbox ?? "").split("@");

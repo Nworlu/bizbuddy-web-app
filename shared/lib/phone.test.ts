@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayPhone, loginEmail, normalizePhone, phoneFromLoginEmail } from "./phone";
+import { displayPhone, loginEmail, normalizePhone, normalizeWhatsAppSender, phoneFromLoginEmail } from "./phone";
 
 describe("normalizePhone", () => {
   it.each(["08031234567", "0803 123 4567", "+234 803 123 4567", "2348031234567", "8031234567", "0803-123-4567"])("reads %j as the same number", (input) => {

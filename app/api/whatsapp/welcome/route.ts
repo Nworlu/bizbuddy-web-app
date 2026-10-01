@@ -66,7 +66,8 @@ export async function POST(request: Request) {
     return Response.json({ sent: false, reason: "already" });
   try {
     // const template = "hello_world";
-    const template = process.env.WHATSAPP_WELCOME_TEMPLATE || "bizbuddy_welcome";
+    const template =
+      process.env.WHATSAPP_WELCOME_TEMPLATE || "bizbuddy_welcome";
     // Meta's sample "hello_world" (handy for testing before our template is approved) takes no values.
     const params = template === "hello_world" ? [] : [firstName, shopName];
     await sendTemplate(
@@ -76,6 +77,11 @@ export async function POST(request: Request) {
       process.env.WHATSAPP_TEMPLATE_LANGUAGE ||
         (template === "hello_world" ? "en_US" : "en"),
     );
+    console.log("WhatsApp welcome sent successfully", {
+      phone,
+      template,
+      params,
+    });
     return Response.json({ sent: true });
   } catch (sendError) {
     // Let a later try succeed, e.g. once Meta has approved the template.

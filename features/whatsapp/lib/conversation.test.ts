@@ -150,10 +150,20 @@ describe("who is chatting", () => {
     expect(w.last().buttons).toEqual(["Save", "Cancel"]);
   });
 
-  it("says it only reads text for now", async () => {
+  it("reads a voice note as the words they said", async () => {
     const w = world();
-    await handleMessage({ id: "v1", from: OWNER, other: "audio" }, w.deps);
-    expect(w.last().body).toContain("I can't listen to a voice note yet");
+    w.deps.listen = async () => "Sold a cap to David for 10k";
+    w.script([sale()]);
+    await handleMessage({ id: "v1", from: OWNER, audio: { id: "aud-1" } }, w.deps);
+    expect(w.asked[0].message).toBe("Sold a cap to David for 10k");
+    expect(w.last().buttons).toEqual(["Save", "Cancel"]);
+  });
+
+  it("says so when a voice note can't be heard", async () => {
+    const w = world();
+    await handleMessage({ id: "v2", from: OWNER, other: "audio" }, w.deps);
+    expect(w.last().body).toContain("Say it again, or type it");
+    expect(w.last().body).not.toContain("Sold 2 shoes");
   });
 
   it("stays quiet when WhatsApp sends a reaction", async () => {

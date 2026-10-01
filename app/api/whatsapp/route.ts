@@ -9,6 +9,7 @@ import { after } from "next/server";
 import { handleMessage, type Deps } from "@/features/whatsapp/lib/conversation";
 import { clearPending, getMemory, getPending, getThread, loadBooks, markSeen, saveChanges, saveMemory, saveThread, setAbout, setPending } from "@/features/whatsapp/server/books";
 import { downloadMedia, incomingMessages, MediaTooBigError, sendWhatsApp, showTyping, validSignature } from "@/features/whatsapp/server/meta";
+import { hearVoice } from "@/features/whatsapp/server/voice";
 import { IMAGE_MAX_BYTES, LearnError, learnFromImage, learnFromWebsite } from "@/features/tell/server/learn-business";
 import { whoIsChatting } from "@/features/whatsapp/server/who";
 import { interpret, TellBusyError } from "@/features/tell/server/interpret";
@@ -37,6 +38,7 @@ const deps: Deps = {
   setAbout,
   getThread,
   saveThread,
+  listen: hearVoice,
   getMemory,
   saveMemory,
   interpret,

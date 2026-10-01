@@ -19,4 +19,12 @@ describe("incomingMessages", () => {
     });
     expect(message).toMatchObject({ from: "2348031234567", profileName: "David Okafor", text: "I paid 20k" });
   });
+
+  it("keeps a voice note's media id", () => {
+    const [message] = incomingMessages({
+      entry: [{ changes: [{ value: { messages: [{ id: "m2", from: "2348031234567", type: "audio", audio: { id: "aud-1" } }] } }] }],
+    });
+    expect(message).toMatchObject({ audio: { id: "aud-1" } });
+    expect(message.text).toBeUndefined();
+  });
 });

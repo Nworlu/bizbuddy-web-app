@@ -55,7 +55,7 @@ export default function TermsPage() {
           A confirmed note teaches BizBuddy how this shop writes. That memory is for your shop only. The money is still calculated by the app from the records, not guessed by the reader.
         </p>
         <p>
-          The same thing works on WhatsApp, from the phone number on your account. Nothing is recorded until you tap Save or reply yes. A different number is not connected to your shop. Voice notes and pictures are not read.
+          The same thing works on WhatsApp, from the phone number on your account. Nothing is recorded until you tap Save or reply yes. A different number is not connected to your shop. A voice note is heard as words and then handled like a message you typed.
         </p>
       </section>
 

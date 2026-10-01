@@ -64,7 +64,7 @@ export default function PrivacyPage() {
           You can message BizBuddy on WhatsApp from the same phone number as your account. That message is read the same way as a note in the app: today&apos;s date, your customer names, and this shop&apos;s lessons go with it. The full books are not sent. BizBuddy replies in the chat and waits until you tap Save or Cancel before anything is recorded.
         </p>
         <p>
-          The message is kept until you answer, so the reply can be finished. A confirmed note is then remembered for your shop, the same as in the app. A phone number that is not the account is told how to sign up. Customers are not given a chat. Voice notes and pictures are not read.
+          The message is kept until you answer, so the reply can be finished. A confirmed note is then remembered for your shop, the same as in the app. A phone number that is not the account is told how to sign up. Customers are not given a chat. A voice note is turned into text by OpenAI and then read like a typed message. The audio itself is not kept.
         </p>
         <p>WhatsApp, run by Meta, delivers those messages. BizBuddy uses it only to talk with the shop owner about their books.</p>
       </section>

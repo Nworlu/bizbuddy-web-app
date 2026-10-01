@@ -25,7 +25,9 @@ export interface Incoming {
   buttonId?: string;
   /** A picture they sent: Meta's media id (download with downloadMedia) and any caption. */
   image?: { id: string; caption?: string };
-  /** Anything else (voice note, image, sticker…), so we can say we only read text for now. */
+  /** A voice note: Meta's media id. Heard, then read like a typed message. */
+  audio?: { id: string };
+  /** Anything else (sticker, video…), so we can say we only read text and voice for now. */
   other?: string;
 }
 
@@ -37,6 +39,7 @@ type WebhookMessage = {
   interactive?: { button_reply?: { id?: string } };
   button?: { payload?: string };
   image?: { id?: string; caption?: string };
+  audio?: { id?: string };
 };
 
 type WebhookValue = {
@@ -58,6 +61,7 @@ export function incomingMessages(payload: unknown): Incoming[] {
         else if (m.type === "interactive" && m.interactive?.button_reply?.id) out.push({ id: m.id, from: m.from, profileName, buttonId: m.interactive.button_reply.id });
         else if (m.type === "button" && m.button?.payload) out.push({ id: m.id, from: m.from, profileName, buttonId: m.button.payload });
         else if (m.type === "image" && m.image?.id) out.push({ id: m.id, from: m.from, profileName, image: { id: m.image.id, ...(m.image.caption ? { caption: m.image.caption } : {}) } });
+        else if (m.type === "audio" && m.audio?.id) out.push({ id: m.id, from: m.from, profileName, audio: { id: m.audio.id } });
         else out.push({ id: m.id, from: m.from, profileName, other: m.type ?? "unknown" });
       }
     }

@@ -22,7 +22,7 @@ import { chatHeading, chatPrompt, nextAbout, personalize, type ChatWith } from "
 import { answerToText, AUTO_OFF, AUTO_ON, CANCEL, command, decision, HELP, lagosToday, notLinked, reminderButtonId, reminderCommand, SAVE, SAVE_EXPENSE, SAVE_SALE, UNDO, type Choice, type ReminderCommand } from "./text";
 import { continueTalk, remember, threadPrompt, WHAT_YOU_CAN_ASK, type Turn } from "./thread";
 
-export type Incoming = { id: string; from: string; profileName?: string; text?: string; buttonId?: string; image?: { id: string; caption?: string }; other?: string };
+export type Incoming = { id: string; from: string; profileName?: string; text?: string; buttonId?: string; image?: { id: string; caption?: string }; audio?: { id: string }; other?: string };
 export type Button = { id: string; title: string };
 /** Money a person sent that could be a customer paying or the team spending: the owner picks one. */
 export type Either = { person: string; sale: SaleDraft; expense: ExpenseDraft };
@@ -61,7 +61,8 @@ export interface Deps {
   saveThread(phone: string, turns: Turn[]): Promise<void>;
   getMemory(businessId: string): Promise<ShopMemory>;
   saveMemory(businessId: string, memory: ShopMemory): Promise<void>;
-  /** Throws BusyError when the AI is overloaded, RefusedError when it declines, anything else on failure. */
+  /** Turns a voice note (Meta's media id) into the words they said. */
+  listen?(mediaId: string): Promise<string>;
   interpret(input: TellInput): Promise<Interpretation>;
   isBusy(error: unknown): boolean;
   send(to: string, body: string, buttons?: Button[]): Promise<void>;
@@ -102,6 +103,26 @@ const OFFER_BUTTONS: Button[] = [
 const STILL_ASKS = "I'll still ask about new customers, payments, big amounts, and anything that could be a sale or an expense.";
 const OFFER = `I've read your last ${AUTO_SAVE_AFTER} notes right. Want me to save notes like these straight away, without asking?\n\n${STILL_ASKS} Every one I save by myself has an *Undo*.`;
 
+/** The words in a voice note, or null when the owner was already told it couldn't be heard. */
+async function hear(mediaId: string, to: string, deps: Deps): Promise<string | null> {
+  if (!deps.listen) {
+    await deps.send(to, "I couldn't hear that. Say it again, or type it.");
+    return null;
+  }
+  try {
+    const words = (await deps.listen(mediaId)).replace(/\s+/g, " ").trim().slice(0, 800);
+    if (!words) {
+      await deps.send(to, "I couldn't hear any words in that. Say it again, or type it.");
+      return null;
+    }
+    return words;
+  } catch (error) {
+    const tooLong = error instanceof Error && error.name === "MediaTooBigError";
+    await deps.send(to, tooLong ? "That voice note is too long. Send a shorter one, or type it." : "I couldn't hear that. Say it again, or type it.");
+    return null;
+  }
+}
+
 export async function handleMessage(message: Incoming, deps: Deps): Promise<void> {
   // WhatsApp can deliver the same message twice: handle each once.
   if (!(await deps.markSeen(message.id))) return;
@@ -118,22 +139,28 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   await deps.noteInbound?.(phone).catch(() => undefined);
 
   const { today, weekday } = lagosToday(deps.now?.() ?? new Date());
-  const asked = command({ text: message.text, buttonId: message.buttonId });
+  let text = message.text;
+  if (!text && message.audio) {
+    const heard = await hear(message.audio.id, to, deps);
+    if (heard === null) return;
+    text = heard;
+  }
+  const asked = command({ text, buttonId: message.buttonId });
   if (asked) return runCommand(asked, phone, to, chat, deps);
-  const aboutReminders = reminderCommand({ text: message.text, buttonId: message.buttonId });
+  const aboutReminders = reminderCommand({ text, buttonId: message.buttonId });
   if (aboutReminders) return runReminderCommand(aboutReminders, to, chat, deps);
-  const choice = decision({ text: message.text, buttonId: message.buttonId });
+  const choice = decision({ text, buttonId: message.buttonId });
   if (choice) return confirm(choice, phone, to, chat, today, deps);
 
   if (message.image) return learnFrom(() => deps.learn!.fromImage(message.image!), phone, to, chat, deps);
 
   // Any other button (e.g. "Hi BizBuddy" on the welcome message) is a hello.
   if (message.buttonId) return deps.send(to, [chatHeading(chat), "Tell me what happened, the way you'd say it."].filter(Boolean).join("\n\n"));
-  if (!message.text) {
+  if (!text) {
     // A reaction or a system note is not the owner talking. Don't answer it with a script.
     if (message.other && ["reaction", "system", "unsupported", "ephemeral", "request_welcome"].includes(message.other)) return;
     const voice = message.other === "audio" || message.other === "video";
-    return deps.send(to, voice ? "I can't listen to a voice note yet. Type it the way you'd tell me, and I'll follow." : "I can only read what you type for now. A photo of your page or price list I can learn from.");
+    return deps.send(to, voice ? "I couldn't hear that. Say it again, or type it." : "I can only read what you type for now. A photo of your page or price list I can learn from.");
   }
 
   const [books, memory, waiting, thread] = await Promise.all([
@@ -146,12 +173,12 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
 
   // BizBuddy asked for something missing ("Who bought it?"): a short reply is the answer, so read the
   // note again with it. Anything longer is a new note.
-  const answering = pending?.asking && words(message.text) <= ANSWER_WORDS;
-  const note = answering ? `${pending.note}\n(${pending.asking} ${message.text.trim()})` : message.text;
+  const answering = pending?.asking && words(text) <= ANSWER_WORDS;
+  const note = answering ? `${pending.note}\n(${pending.asking} ${text.trim()})` : text;
   if (pending?.asking) await deps.clearPending(phone);
 
   // Just a link: their Instagram / TikTok / Facebook handle is saved; a website is read to learn the business.
-  const link = !answering ? onlyLink(message.text) : null;
+  const link = !answering ? onlyLink(text) : null;
   if (link) {
     const social = socialFromUrl(link);
     if (social) {
@@ -168,13 +195,13 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
 
   let turns = thread;
   const say = async (body: string, buttons?: Button[]) => {
-    turns = remember(turns, message.text ?? note, body);
+    turns = remember(turns, text ?? note, body);
     await deps.saveThread(phone, turns);
     return deps.send(to, body, buttons);
   };
 
   // A short follow-up stays on the last question. The numbers still come from the books.
-  const continued = !answering && message.text ? continueTalk(message.text, thread) : null;
+  const continued = !answering && text ? continueTalk(text, thread) : null;
   if (continued) {
     const now = deps.now?.();
     const text =
@@ -189,7 +216,7 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     return;
   }
 
-  const socials = !answering && message.text ? aboutSocials(message.text, memory.socials) : null;
+  const socials = !answering && text ? aboutSocials(text, memory.socials) : null;
   if (socials) {
     await say(socials);
     const reminder = earlier && reminderFor(earlier, books);

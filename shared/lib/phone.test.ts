@@ -16,6 +16,14 @@ describe("normalizePhone", () => {
   });
 });
 
+describe("normalizeWhatsAppSender", () => {
+  it("reads Nigerian and international senders from WhatsApp", () => {
+    expect(normalizeWhatsAppSender("2348031234567")).toBe("2348031234567");
+    expect(normalizeWhatsAppSender("447700900123")).toBe("447700900123");
+    expect(normalizeWhatsAppSender("99999999")).toBeNull();
+  });
+});
+
 describe("login address", () => {
   const mailbox = "owner@gmail.com";
 

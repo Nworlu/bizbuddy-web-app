@@ -35,6 +35,7 @@ const APP_PAGES = [
   "/expenses/edit",
   "/ask",
   "/settings",
+  "/admin",
   "/privacy",
   "/terms",
 ];

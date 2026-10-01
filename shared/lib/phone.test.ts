@@ -6,8 +6,13 @@ describe("normalizePhone", () => {
     expect(normalizePhone(input)).toBe("2348031234567");
   });
 
-  it.each(["", "0803123456", "080312345678", "02012345678", "12345678901", "abc", "+44 7700 900123"])("rejects %j", (input) => {
+  it.each(["", "0803123456", "080312345678", "02012345678", "12345678901", "abc"])("rejects %j", (input) => {
     expect(normalizePhone(input)).toBeNull();
+  });
+
+  it("accepts other countries when a dial code is given", () => {
+    expect(normalizePhone("712 345 678", "254")).toBe("254712345678");
+    expect(normalizePhone("+44 7700 900123", "44")).toBe("447700900123");
   });
 });
 
@@ -34,6 +39,10 @@ describe("login address", () => {
 describe("displayPhone", () => {
   it("shows the number the Nigerian way", () => {
     expect(displayPhone("2348031234567")).toBe("0803 123 4567");
+  });
+
+  it("shows international numbers with a plus prefix", () => {
+    expect(displayPhone("254712345678")).toBe("+254 712345678");
   });
 });
 

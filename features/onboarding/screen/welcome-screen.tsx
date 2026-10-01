@@ -5,7 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { accountErrorMessage, createAccount, MIN_PASSWORD, sendWhatsAppWelcome } from "@/shared/lib/account";
 import { WhatsAppOptIn } from "@/shared/ui/whatsapp-opt-in";
-import { displayPhone, normalizePhone } from "@/shared/lib/phone";
+import { countryByIso } from "@/shared/lib/countries";
+import { formatPhoneField, normalizePhone } from "@/shared/lib/phone";
+import { usePhoneField } from "@/shared/lib/use-phone-field";
+import { PhoneInput } from "@/shared/ui/phone-input";
 import { createBusiness, hasRecords, loadDemoData, useBizData, useSyncMeta } from "@/shared/lib/store";
 import { accountsEnabled } from "@/shared/lib/supabase";
 import { showToast } from "@/shared/lib/toast";
@@ -127,7 +130,7 @@ function Onboarding({ data }: { data: BizData }) {
   const withAccount = accountsEnabled() && !linked;
   const [step, setStep] = useState<Step>(linked ? "account" : "welcome");
   const [ownerName, setOwnerName] = useState("");
-  const [phone, setPhone] = useState(() => (meta ? displayPhone(meta.phone) : ""));
+  const phoneField = usePhoneField(meta?.phone ?? "");
   const [password, setPassword] = useState("");
   const [offlineStart, setOfflineStart] = useState(false);
   const [whatsappWelcome, setWhatsappWelcome] = useState(true);
@@ -165,8 +168,8 @@ function Onboarding({ data }: { data: BizData }) {
       setError("Please enter your name.");
       return;
     }
-    if (!normalizePhone(phone)) {
-      setError("Enter a Nigerian phone number, like 0803 123 4567.");
+    if (!normalizePhone(phoneField.national, phoneField.dialCode)) {
+      setError("Enter a valid phone number for the country you selected.");
       return;
     }
     if (withAccount && password.length < MIN_PASSWORD) {
@@ -179,7 +182,13 @@ function Onboarding({ data }: { data: BizData }) {
 
   function saveShop() {
     try {
-      createBusiness({ name: name.trim(), ownerName: ownerName.trim(), phone: phone.trim(), type, about });
+      createBusiness({
+        name: name.trim(),
+        ownerName: ownerName.trim(),
+        phone: formatPhoneField(phoneField.national, countryByIso(phoneField.countryIso)),
+        type,
+        about,
+      });
       router.replace("/dashboard");
     } catch {
       setSaving(false);
@@ -198,7 +207,7 @@ function Onboarding({ data }: { data: BizData }) {
     if (withAccount) {
       // The account first: if that phone number already has one, nothing is saved here yet.
       try {
-        await createAccount({ phone, password });
+        await createAccount({ phone: phoneField.national, password, dialCode: phoneField.dialCode });
         if (whatsappWelcome) sendWhatsAppWelcome({ ownerName: ownerName.trim(), shopName: name.trim() });
       } catch (e) {
         setSaving(false);
@@ -266,7 +275,14 @@ function Onboarding({ data }: { data: BizData }) {
                 <input id="owner-name" value={ownerName} onChange={(event) => setOwnerName(event.target.value)} placeholder="e.g. Ada" autoComplete="name" className={inputClass} />
               </Field>
               <Field id="phone" label="Phone number">
-                <input id="phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="e.g. 0803 123 4567" autoComplete="tel" inputMode="tel" readOnly={linked} className={`${inputClass} read-only:bg-stone-50 read-only:text-ink-muted`} />
+                <PhoneInput
+                  id="phone"
+                  countryIso={phoneField.countryIso}
+                  onCountryChange={phoneField.setCountry}
+                  national={phoneField.national}
+                  onNationalChange={phoneField.setNational}
+                  readOnly={linked}
+                />
               </Field>
               {withAccount && (
                 <Field id="password" label="Password">

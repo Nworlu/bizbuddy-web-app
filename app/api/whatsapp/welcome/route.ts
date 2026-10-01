@@ -65,8 +65,8 @@ export async function POST(request: Request) {
   if (!(await claimWelcome(data.user.id, phone)))
     return Response.json({ sent: false, reason: "already" });
   try {
-    const template = "hello_world";
-    // const template = process.env.WHATSAPP_WELCOME_TEMPLATE || "bizbuddy_welcome";
+    // const template = "hello_world";
+    const template = process.env.WHATSAPP_WELCOME_TEMPLATE || "bizbuddy_welcome";
     // Meta's sample "hello_world" (handy for testing before our template is approved) takes no values.
     const params = template === "hello_world" ? [] : [firstName, shopName];
     await sendTemplate(

@@ -1,17 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { displayPhone, loginEmail, normalizePhone, phoneFromLoginEmail, phoneFromParts } from "./phone";
+import { displayPhone, loginEmail, normalizeE164Digits, normalizePhone, normalizeWhatsAppSender, phoneFromLoginEmail, phoneFromParts } from "./phone";
 
 describe("normalizePhone", () => {
   it.each(["08031234567", "0803 123 4567", "+234 803 123 4567", "2348031234567", "8031234567", "0803-123-4567"])("reads %j as the same number", (input) => {
     expect(normalizePhone(input)).toBe("2348031234567");
   });
 
-  it.each(["", "0803123456", "080312345678", "02012345678", "12345678901", "abc"])("rejects %j", (input) => {
+  it.each(["", "0803123456", "080312345678", "02012345678", "abc"])("rejects %j", (input) => {
     expect(normalizePhone(input)).toBeNull();
   });
 
   it("accepts other countries when the full international number is given", () => {
     expect(normalizePhone("+44 7700 900123")).toBe("447700900123");
+  });
+
+  it("accepts bare E.164 digits from the country selector or WhatsApp", () => {
+    expect(normalizePhone("447700900123")).toBe("447700900123");
+  });
+});
+
+describe("normalizeE164Digits", () => {
+  it("reads WhatsApp senders without a plus", () => {
+    expect(normalizeWhatsAppSender("2348031234567")).toBe("2348031234567");
+    expect(normalizeWhatsAppSender("447700900123")).toBe("447700900123");
+  });
+
+  it("rejects numbers with no known calling code", () => {
+    expect(normalizeE164Digits("99999999")).toBeNull();
   });
 });
 

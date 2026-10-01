@@ -27,6 +27,33 @@ function normalizeNgDigits(digits: string): string | null {
   return `234${national}`;
 }
 
+const NATIONAL_MIN = 4;
+const NATIONAL_MAX = 12;
+
+/**
+ * E.164 digits only (no plus), e.g. from WhatsApp webhooks, the phone selector, or a login address.
+ * Nigerian numbers use the same rules as the app; other countries need a known calling code.
+ */
+export function normalizeE164Digits(digits: string): string | null {
+  const d = digits.replace(/\D/g, "");
+  if (!d) return null;
+
+  const ng = normalizeNgDigits(d);
+  if (ng) return ng;
+
+  if (d.length < E164_MIN || d.length > E164_MAX) return null;
+  const country = countryForE164(d);
+  if (!country) return null;
+  const national = d.slice(country.dialCode.length);
+  if (national.length < NATIONAL_MIN || national.length > NATIONAL_MAX) return null;
+  return d;
+}
+
+/** WhatsApp sends the sender as E.164 digits without a leading plus. */
+export function normalizeWhatsAppSender(from: string): string | null {
+  return normalizeE164Digits(from);
+}
+
 /**
  * A phone number as digits only (E.164 without the plus): Nigerian mobiles as 234XXXXXXXXXX, or another
  * country when typed with + / country code. Returns null for anything invalid.
@@ -40,10 +67,10 @@ export function normalizePhone(input: string): string | null {
   const ng = normalizeNgDigits(digits);
   if (ng) return ng;
 
-  if (trimmed.startsWith("+")) {
-    if (digits.length < E164_MIN || digits.length > E164_MAX) return null;
-    return digits;
-  }
+  if (trimmed.startsWith("+")) return normalizeE164Digits(digits);
+
+  // Bare digits: PhoneInput value, WhatsApp, stored account phone.
+  if (/^[\d\s().-]+$/.test(trimmed)) return normalizeE164Digits(digits);
 
   return null;
 }
@@ -99,7 +126,7 @@ export function loginEmail(normalizedPhone: string, mailbox = process.env.NEXT_P
 /** The phone number inside a login address (owner+2348031234567@gmail.com -> 2348031234567), or null. */
 export function phoneFromLoginEmail(email: string | null | undefined): string | null {
   const match = /\+(\d{8,15})@/.exec(email ?? "");
-  return match ? normalizePhone(match[1]) ?? match[1] : null;
+  return match ? normalizeE164Digits(match[1]) : null;
 }
 
 /** Friendly label for showing a stored number (Nigeria keeps the local 0803 style). */

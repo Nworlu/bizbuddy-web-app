@@ -16,7 +16,7 @@ import { shopProfile } from "@/features/tell/lib/profile";
 import { aboutSocials, describeLearned, learnedAnything, mergeCatalog, onlyLink, SOCIAL_LABELS, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
 import { learn, memoryForPrompt, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
 import { dueFrom, formatWhen, lagosClock, reminderList, snoozed, type Reminder } from "@/features/reminders/lib/when";
-import { normalizePhone } from "@/shared/lib/phone";
+import { normalizeWhatsAppSender } from "@/shared/lib/phone";
 import type { BizData } from "@/shared/lib/types";
 import { chatHeading, chatPrompt, nextAbout, personalize, type ChatWith } from "./person";
 import { answerToText, AUTO_OFF, AUTO_ON, CANCEL, command, decision, HELP, lagosToday, notLinked, reminderButtonId, reminderCommand, SAVE, SAVE_EXPENSE, SAVE_SALE, UNDO, type Choice, type ReminderCommand } from "./text";
@@ -131,8 +131,8 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
   await deps.showTyping?.(message.id).catch(() => undefined);
 
   const to = message.from;
-  const phone = normalizePhone(message.from);
-  if (!phone) return deps.send(to, "BizBuddy works with Nigerian phone numbers for now.");
+  const phone = normalizeWhatsAppSender(message.from);
+  if (!phone) return deps.send(to, "BizBuddy couldn't read your phone number. Use the same number you signed up with, including country code.");
 
   const { chat, books: found } = await deps.whoIsChatting(phone, message.profileName ?? null);
   if (chat.kind !== "owner") return deps.send(to, notLinked(deps.appUrl));

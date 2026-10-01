@@ -23,35 +23,52 @@ function clean(value: unknown, fallback: string): string {
   return text || fallback;
 }
 
+function logWelcome(reason: string, extra: Record<string, unknown> = {}) {
+  console.log("WhatsApp welcome", {
+    reason,
+    from: process.env.WHATSAPP_PHONE_NUMBER_ID?.slice(-4) ?? "missing",
+    ...extra,
+  });
+}
+
 export async function POST(request: Request) {
-  if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.SUPABASE_SECRET_KEY)
+  logWelcome("called");
+  if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.SUPABASE_SECRET_KEY) {
+    logWelcome("not-set-up");
     return Response.json(
       { sent: false, reason: "not-set-up" },
       { status: 503 },
     );
+  }
 
   const token = request.headers
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!token || !url || !key)
+  if (!token || !url || !key) {
+    logWelcome("signed-out");
     return Response.json(
       { sent: false, reason: "signed-out" },
       { status: 401 },
     );
+  }
   const { data, error } = await createClient(url, key, {
     auth: { persistSession: false },
   }).auth.getUser(token);
-  if (error || !data.user)
+  if (error || !data.user) {
+    logWelcome("signed-out");
     return Response.json(
       { sent: false, reason: "signed-out" },
       { status: 401 },
     );
+  }
 
   const phone = phoneFromLoginEmail(data.user.email);
-  if (!phone)
+  if (!phone) {
+    logWelcome("no-phone");
     return Response.json({ sent: false, reason: "no-phone" }, { status: 400 });
+  }
 
   let body: { ownerName?: unknown; shopName?: unknown } = {};
   try {
@@ -62,8 +79,10 @@ export async function POST(request: Request) {
   const firstName = clean(body.ownerName, "there").split(" ")[0];
   const shopName = clean(body.shopName, "your shop");
 
-  if (!(await claimWelcome(data.user.id, phone)))
+  if (!(await claimWelcome(data.user.id, phone))) {
+    logWelcome("already", { to: phone.slice(-4) });
     return Response.json({ sent: false, reason: "already" });
+  }
   try {
     // const template = "hello_world";
     const template =
@@ -77,19 +96,15 @@ export async function POST(request: Request) {
       process.env.WHATSAPP_TEMPLATE_LANGUAGE ||
         (template === "hello_world" ? "en_US" : "en"),
     );
-    console.log("WhatsApp welcome sent successfully", {
-      phone,
-      template,
-      params,
-    });
+    logWelcome("sent", { to: phone.slice(-4), template, params });
     return Response.json({ sent: true });
   } catch (sendError) {
     // Let a later try succeed, e.g. once Meta has approved the template.
     await releaseWelcome(data.user.id).catch(() => undefined);
-    console.error(
-      "WhatsApp welcome failed",
-      sendError instanceof Error ? sendError.message : sendError,
-    );
+    logWelcome("send-failed", {
+      to: phone.slice(-4),
+      error: sendError instanceof Error ? sendError.message : String(sendError),
+    });
     return Response.json(
       { sent: false, reason: "send-failed" },
       { status: 502 },

@@ -21,9 +21,9 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
-  if (verifyToken && url.searchParams.get("hub.mode") === "subscribe" && url.searchParams.get("hub.verify_token") === verifyToken) {
-    return new Response(url.searchParams.get("hub.challenge") ?? "", { status: 200 });
-  }
+  const ok = Boolean(verifyToken && url.searchParams.get("hub.mode") === "subscribe" && url.searchParams.get("hub.verify_token") === verifyToken);
+  console.log("WhatsApp webhook", { method: "GET", verified: ok });
+  if (ok) return new Response(url.searchParams.get("hub.challenge") ?? "", { status: 200 });
   return new Response("Forbidden", { status: 403 });
 }
 
@@ -59,27 +59,48 @@ const deps: Deps = {
 
 export async function POST(request: Request) {
   const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return new Response("WhatsApp isn't set up", { status: 503 });
+  if (!secret) {
+    console.log("WhatsApp webhook", { method: "POST", result: "not-set-up" });
+    return new Response("WhatsApp isn't set up", { status: 503 });
+  }
 
   // The signature covers the exact bytes Meta sent, so read the raw body before parsing it.
   const raw = await request.text();
-  if (!validSignature(raw, request.headers.get("x-hub-signature-256"), secret)) return new Response("Bad signature", { status: 401 });
+  if (!validSignature(raw, request.headers.get("x-hub-signature-256"), secret)) {
+    console.log("WhatsApp webhook", { method: "POST", result: "bad-signature" });
+    return new Response("Bad signature", { status: 401 });
+  }
 
   let payload: unknown;
   try {
     payload = JSON.parse(raw);
   } catch {
+    console.log("WhatsApp webhook", { method: "POST", result: "bad-request" });
     return new Response("Bad request", { status: 400 });
   }
 
   const messages = incomingMessages(payload);
+  console.log("WhatsApp webhook", {
+    method: "POST",
+    result: "accepted",
+    sender: process.env.WHATSAPP_PHONE_NUMBER_ID?.slice(-4) ?? "missing",
+    count: messages.length,
+    messages: messages.map((message) => ({
+      phone: message.from.slice(-4),
+      kind: message.text ? "text" : message.audio ? "audio" : message.image ? "image" : message.buttonId ? "button" : message.other ?? "empty",
+      text: message.text?.slice(0, 80),
+    })),
+  });
   after(async () => {
     for (const message of messages) {
       try {
         await handleMessage(message, deps);
+        console.log("WhatsApp webhook", { result: "handled", phone: message.from.slice(-4) });
       } catch (error) {
-        console.error("WhatsApp: failed to handle a message", error instanceof Error ? error.message : error);
-        await sendWhatsApp(message.from, "Sorry, something went wrong on my side. Please send that again in a moment.").catch(() => undefined);
+        console.error("WhatsApp webhook", { result: "failed", phone: message.from.slice(-4), error: error instanceof Error ? error.message : String(error) });
+        await sendWhatsApp(message.from, "Sorry, something went wrong on my side. Please send that again in a moment.").catch((sendError) => {
+          console.error("WhatsApp webhook", { result: "sorry-failed", error: sendError instanceof Error ? sendError.message : String(sendError) });
+        });
       }
     }
   });

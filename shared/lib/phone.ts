@@ -8,10 +8,13 @@
 // ever see their phone number.
 //
 // Changing NEXT_PUBLIC_LOGIN_EMAIL changes every login, so existing accounts would need moving.
-//
-// Phone numbers are Nigerian only for now (234XXXXXXXXXX).
 
-import { countryByIso, DEFAULT_COUNTRY_ISO, type Country } from "./countries";
+import { countryByIso, countryForE164, DEFAULT_COUNTRY_ISO, type Country } from "./countries";
+
+const E164_MIN = 8;
+const E164_MAX = 15;
+const NATIONAL_MIN = 4;
+const NATIONAL_MAX = 12;
 
 function validateNgNational(national: string): boolean {
   return /^[789]\d{9}$/.test(national);
@@ -27,40 +30,88 @@ function normalizeNgDigits(digits: string): string | null {
 }
 
 /**
- * A Nigerian mobile number as 234XXXXXXXXXX, however it was typed: "0803 123 4567", "+234 803…",
- * "2348031234567", or "8031234567". Returns null for anything else.
+ * E.164 digits only (no plus): WhatsApp webhooks, PhoneInput values, login addresses.
+ * Nigerian local formats are normalized; other countries need a known calling code.
+ */
+export function normalizeE164Digits(digits: string): string | null {
+  const d = digits.replace(/\D/g, "");
+  if (!d) return null;
+
+  const ng = normalizeNgDigits(d);
+  if (ng) return ng;
+
+  if (d.length < E164_MIN || d.length > E164_MAX) return null;
+  const country = countryForE164(d);
+  if (!country) return null;
+  const national = d.slice(country.dialCode.length);
+  if (national.length < NATIONAL_MIN || national.length > NATIONAL_MAX) return null;
+  return d;
+}
+
+/** WhatsApp sends the sender as E.164 digits without a leading plus. */
+export function normalizeWhatsAppSender(from: string): string | null {
+  return normalizeE164Digits(from);
+}
+
+/**
+ * A phone number as digits only (E.164 without the plus). Nigerian mobiles as 234XXXXXXXXXX, or
+ * international when typed with + or as bare E.164 from the country selector.
  */
 export function normalizePhone(input: string): string | null {
-  const digits = input.replace(/\D/g, "");
-  return normalizeNgDigits(digits);
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+
+  const ng = normalizeNgDigits(digits);
+  if (ng) return ng;
+
+  if (trimmed.startsWith("+")) return normalizeE164Digits(digits);
+
+  if (/^[\d\s().-]+$/.test(trimmed)) return normalizeE164Digits(digits);
+
+  return null;
 }
 
-/** WhatsApp sends the sender as E.164 digits without a plus (2348031234567 for Nigeria). */
-export function normalizeWhatsAppSender(from: string): string | null {
-  return normalizePhone(from);
-}
-
-/** Builds 234XXXXXXXXXX from +234 and the national field (PhoneInput). */
+/** Builds E.164 digits from a country calling code and the national field. */
 export function phoneFromParts(dialCode: string, nationalInput: string): string | null {
+  let national = nationalInput.replace(/\D/g, "");
   const code = dialCode.replace(/\D/g, "");
-  if (code !== "234") return null;
-  return normalizePhone(nationalInput);
+  if (!national || !code) return null;
+  if (national.startsWith("0")) national = national.slice(1);
+  if (code === "234") {
+    if (!validateNgNational(national)) return null;
+    return `234${national}`;
+  }
+  const full = `${code}${national}`;
+  if (full.length < E164_MIN || full.length > E164_MAX) return null;
+  return normalizeE164Digits(full);
 }
 
 export type PhoneParts = { country: Country; national: string };
 
-/** Splits stored phone text for the Nigeria phone input. */
+/** Splits stored phone text into country + national field for the selector UI. */
 export function splitPhone(stored: string, defaultIso = DEFAULT_COUNTRY_ISO): PhoneParts {
-  const country = countryByIso(defaultIso);
   const trimmed = stored.trim();
-  if (!trimmed) return { country, national: "" };
+  if (!trimmed) return { country: countryByIso(defaultIso), national: "" };
 
   const normalized = normalizePhone(trimmed);
   if (normalized) {
-    return { country, national: `0${normalized.slice(3)}` };
+    const country = countryForE164(normalized) ?? countryByIso(defaultIso);
+    let national = normalized.slice(country.dialCode.length);
+    if (country.iso === "NG") national = `0${national}`;
+    return { country, national };
   }
 
-  return { country, national: trimmed };
+  const digits = trimmed.replace(/\D/g, "");
+  const country = countryForE164(digits) ?? countryByIso(defaultIso);
+  if (digits.startsWith(country.dialCode)) {
+    let national = digits.slice(country.dialCode.length);
+    if (country.iso === "NG" && !national.startsWith("0")) national = `0${national}`;
+    return { country, national };
+  }
+
+  return { country: countryByIso(defaultIso), national: trimmed };
 }
 
 /** The private login address for a normalized phone number: the mailbox with +<phone> added. */
@@ -72,13 +123,18 @@ export function loginEmail(normalizedPhone: string, mailbox = process.env.NEXT_P
 
 /** The phone number inside a login address (owner+2348031234567@gmail.com -> 2348031234567), or null. */
 export function phoneFromLoginEmail(email: string | null | undefined): string | null {
-  const match = /\+(\d{13})@/.exec(email ?? "");
-  return match ? normalizePhone(match[1]) : null;
+  const match = /\+(\d{8,15})@/.exec(email ?? "");
+  return match ? normalizeE164Digits(match[1]) : null;
 }
 
-/** 2348031234567 -> 0803 123 4567, for showing to the shop owner. */
+/** Friendly label for showing a stored number (Nigeria keeps the local 0803 style). */
 export function displayPhone(normalizedPhone: string): string {
-  const local = `0${normalizedPhone.replace(/\D/g, "").slice(3)}`;
-  if (local.length !== 11) return normalizedPhone;
-  return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`;
+  const digits = normalizedPhone.replace(/\D/g, "");
+  if (digits.startsWith("234") && digits.length === 13) {
+    const local = `0${digits.slice(3)}`;
+    return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`;
+  }
+  const country = countryForE164(digits);
+  if (country) return `+${country.dialCode} ${digits.slice(country.dialCode.length)}`;
+  return normalizedPhone;
 }

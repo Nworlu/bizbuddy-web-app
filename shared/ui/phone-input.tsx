@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { COUNTRIES, dialLabel, flagEmoji } from "@/shared/lib/countries";
+import { COUNTRIES, dialLabel, flagEmoji, type Country } from "@/shared/lib/countries";
 import { displayPhone, normalizePhone, phoneFromParts, splitPhone } from "@/shared/lib/phone";
 
 type PhoneInputProps = {
@@ -14,29 +14,40 @@ type PhoneInputProps = {
   autoComplete?: string;
 };
 
-/** Nigeria only for now: fixed +234 calling code and national number field. */
 export function PhoneInput({ id, value, onChange, readOnly, placeholder, hasError, autoComplete = "tel" }: PhoneInputProps) {
   const listId = useId();
-  const country = COUNTRIES[0];
   const initial = splitPhone(value);
+  const [country, setCountry] = useState<Country>(initial.country);
   const [national, setNational] = useState(initial.national);
 
   useEffect(() => {
-    setNational(splitPhone(value).national);
+    const next = splitPhone(value);
+    setCountry(next.country);
+    setNational(next.national);
   }, [value]);
+
+  function emit(iso: Country, nationalValue: string) {
+    const e164 = phoneFromParts(iso.dialCode, nationalValue);
+    onChange(e164 ?? nationalValue.trim());
+  }
+
+  function onCountryChange(iso: string) {
+    const next = COUNTRIES.find((c) => c.iso === iso) ?? country;
+    setCountry(next);
+    emit(next, national);
+  }
 
   function onNationalChange(nextNational: string) {
     setNational(nextNational);
-    const e164 = phoneFromParts(country.dialCode, nextNational);
-    onChange(e164 ?? nextNational.trim());
+    emit(country, nextNational);
   }
 
   const fieldClass = `min-w-0 flex-1 rounded-xl border bg-white px-4 py-3 text-sm text-ink outline-none transition focus:ring-2 read-only:bg-stone-50 read-only:text-ink-muted ${
     hasError ? "border-rose-400 focus:ring-rose-200" : "border-stone-200 focus:border-brand-700 focus:ring-brand-200"
   }`;
 
-  const prefixClass = `flex shrink-0 items-center gap-1.5 rounded-xl border bg-stone-50 px-3 py-3 text-sm font-medium text-ink ${
-    hasError ? "border-rose-400" : "border-stone-200"
+  const selectClass = `shrink-0 rounded-xl border bg-white py-3 pl-3 pr-8 text-sm font-medium text-ink outline-none transition focus:ring-2 ${
+    hasError ? "border-rose-400 focus:ring-rose-200" : "border-stone-200 focus:border-brand-700 focus:ring-brand-200"
   }`;
 
   const preview = normalizePhone(value) ? displayPhone(normalizePhone(value)!) : null;
@@ -44,10 +55,23 @@ export function PhoneInput({ id, value, onChange, readOnly, placeholder, hasErro
   return (
     <div className="space-y-1">
       <div className="flex gap-2">
-        <div className={prefixClass} aria-hidden={readOnly}>
-          <span>{flagEmoji(country.iso)}</span>
-          <span>{dialLabel(country)}</span>
-        </div>
+        <label htmlFor={`${id}-country`} className="sr-only">
+          Country calling code
+        </label>
+        <select
+          id={`${id}-country`}
+          value={country.iso}
+          onChange={(e) => onCountryChange(e.target.value)}
+          disabled={readOnly}
+          className={selectClass}
+          aria-describedby={preview ? `${listId}-hint` : undefined}
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.iso} value={c.iso}>
+              {flagEmoji(c.iso)} {c.name} ({dialLabel(c)})
+            </option>
+          ))}
+        </select>
         <input
           id={id}
           type="tel"
@@ -56,10 +80,9 @@ export function PhoneInput({ id, value, onChange, readOnly, placeholder, hasErro
           value={national}
           onChange={(e) => onNationalChange(e.target.value)}
           readOnly={readOnly}
-          placeholder={placeholder ?? "e.g. 0803 123 4567"}
+          placeholder={placeholder ?? (country.iso === "NG" ? "e.g. 0803 123 4567" : "Phone number")}
           className={fieldClass}
           aria-invalid={hasError}
-          aria-describedby={preview ? `${listId}-hint` : undefined}
         />
       </div>
       {preview && (

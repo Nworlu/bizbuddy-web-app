@@ -167,7 +167,7 @@ function Onboarding({ data }: { data: BizData }) {
       return;
     }
     if (!normalizePhone(phone)) {
-      setError("Enter a Nigerian phone number, like 0803 123 4567.");
+      setError("Enter a valid phone number for the country you selected.");
       return;
     }
     if (withAccount && password.length < MIN_PASSWORD) {

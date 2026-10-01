@@ -52,7 +52,7 @@ function EditCustomerForm({ customer, data, onDeleted }: { customer: Customer; d
     const clash = name.trim() ? findCustomerByName(data, name) : undefined;
     const next = {
       name: !name.trim() ? "Enter the customer's name." : clash && clash.id !== customer.id ? `${clash.name} is already a customer.` : undefined,
-      phone: phone.trim() && !normalizePhone(phone) ? "Enter a phone number like 08012345678, or leave it empty." : undefined,
+      phone: phone.trim() && !normalizePhone(phone) ? "Enter a valid phone number, or leave it empty." : undefined,
     };
     setErrors(next);
     if (next.name || next.phone) return;

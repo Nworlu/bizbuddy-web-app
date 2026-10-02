@@ -29,7 +29,7 @@ export const COUNTER = {
   price: "₦15,000",
   cadence: "a month",
   summary: "The whole shop, not only the notes. This is the one to pick.",
-  points: ["Everything in Shop", "Voice notes", "The evening check-in and the Sunday summary", "Learn the shop from a photo or your website"],
+  points: ["Everything in Shop", "Voice notes", "The evening check-in and the Sunday summary", "Learn the shop from a photo, your website, or your socials"],
   comingSoon: true,
   recommended: true,
 } as const;

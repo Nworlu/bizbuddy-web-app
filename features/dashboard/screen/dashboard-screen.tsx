@@ -65,7 +65,7 @@ export function Dashboard() {
             <h2 id="subscription-title" className="mt-1 text-base font-semibold">
               {COUNTER.name} is {COUNTER.price} {COUNTER.cadence}
             </h2>
-            <p className="mt-1 text-sm text-ink-muted">Recommended. Voice notes, the evening check-in, the Sunday summary, and learning the shop. The books stay free.</p>
+            <p className="mt-1 text-sm text-ink-muted">Recommended. Voice notes, the evening check-in, the Sunday summary, and learning the shop from a photo, your website, or your socials. The books stay free.</p>
           </div>
           <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Coming soon</span>
         </div>

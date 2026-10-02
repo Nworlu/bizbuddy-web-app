@@ -35,6 +35,6 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "Is there a fee?",
-    a: "The books on the website are free. Shop is ₦8,000 a month. Counter, the recommended plan, is ₦15,000 a month. Both are coming soon. Shop is WhatsApp notes and reminders to collect what you're owed. Counter adds voice notes, the evening check-in, the Sunday summary, and learning the shop. Each shop gets 15 test messages first. There is no card to enter yet.",
+    a: "The books on the website are free. Shop is ₦8,000 a month. Counter, the recommended plan, is ₦15,000 a month. Both are coming soon. Shop is WhatsApp notes and reminders to collect what you're owed. Counter adds voice notes, the evening check-in, the Sunday summary, and learning the shop from a photo, your website, or your socials. Each shop gets 15 test messages first. There is no card to enter yet.",
   },
 ];

@@ -70,7 +70,7 @@ export default function TermsPage() {
 
       <section>
         <h2>Price</h2>
-        <p>The books are free. Tell BizBuddy and WhatsApp include 15 test messages. After that, new notes wait until a subscription is ready. There is no card to enter yet. If a paid version is offered later, BizBuddy will say so in the product before you are asked to pay.</p>
+        <p>The books on the website are free. Each shop gets 15 test messages on Tell BizBuddy and WhatsApp. After that, the website still records sales, payments, and spending. WhatsApp notes, reminders to collect what you're owed, and the Sunday summary wait until a subscription is ready. There is no card to enter yet. If a paid version is offered later, BizBuddy will say so before you are asked to pay, and will message you on WhatsApp when it is ready.</p>
       </section>
 
       <section>

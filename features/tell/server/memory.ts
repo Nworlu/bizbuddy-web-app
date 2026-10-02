@@ -70,7 +70,8 @@ export async function setAutoSave(token: string, on: boolean): Promise<boolean> 
   return (await updateMemory(token, (memory) => withAutoSave(memory, on ? "on" : "declined"))) !== null;
 }
 
-/** Counts one test note after it was read. A failed read does not call this. */
-export async function spendTrialFor(token: string): Promise<void> {
-  await updateMemory(token, spendTrial);
+/** Counts one test note after it was read. A failed read does not call this. Returns how many this shop has used. */
+export async function spendTrialFor(token: string): Promise<number | null> {
+  const next = await updateMemory(token, spendTrial);
+  return next?.trialUsed ?? null;
 }

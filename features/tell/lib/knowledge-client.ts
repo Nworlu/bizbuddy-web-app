@@ -31,7 +31,7 @@ async function call<T>(method: string, body?: unknown): Promise<T> {
 export const getKnowledge = () => call<Knowledge>("GET");
 export const updateKnowledge = (change: { socials?: Socials; removeProduct?: string; description?: string }) => call<Knowledge>("PATCH", change);
 export const saveLearned = (learned: Learned) => call<Knowledge>("POST", { action: "save", learned });
-export const readWebsite = (url: string) => call<{ learned: Learned }>("POST", { action: "read-website", url }).then((r) => r.learned);
+export const readWebsite = (url: string) => call<{ learned: Learned; trialNotice?: string }>("POST", { action: "read-website", url });
 
 /** Shrinks a photo to at most 1600px on the long side as JPEG before sending (phone photos are big). */
 async function shrink(file: File): Promise<{ data: string; mime: string }> {
@@ -45,9 +45,9 @@ async function shrink(file: File): Promise<{ data: string; mime: string }> {
   return { data: url.slice(url.indexOf(",") + 1), mime: "image/jpeg" };
 }
 
-export async function readImage(file: File): Promise<Learned> {
+export async function readImage(file: File): Promise<{ learned: Learned; trialNotice?: string }> {
   const image = await shrink(file).catch(() => {
     throw new KnowledgeError("Couldn't open that picture. Try a JPEG or PNG screenshot.");
   });
-  return call<{ learned: Learned }>("POST", { action: "read-image", ...image }).then((r) => r.learned);
+  return call<{ learned: Learned; trialNotice?: string }>("POST", { action: "read-image", ...image });
 }

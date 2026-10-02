@@ -133,6 +133,7 @@ export function TellPage() {
     tellBizBuddy(text, getBizData(), threadPrompt(turns.current))
       .then((result) => {
         const replies = repliesFor(result, text);
+        if (result.trialNotice) replies.push({ kind: "text", text: result.trialNotice });
         keep(text, replies);
         resolve(id, replies);
       })

@@ -18,11 +18,12 @@ import { checkInDue, eveningText, recordedOn, weeklySummary, type CheckInKind } 
 import { chattingOwners, claimCheckIn, releaseCheckIn } from "@/features/checkins/server/store";
 import { formatWhen, lagosClock } from "@/features/reminders/lib/when";
 import { claimReminder, dueReminders, lastInbound, releaseReminder } from "@/features/reminders/server/store";
-import { unsavedReminderMinutes } from "@/features/tell/lib/memory";
+import { unsavedReminderMinutes, trialOpen } from "@/features/tell/lib/memory";
 import { reminderFor } from "@/features/whatsapp/lib/conversation";
 import { reminderButtonId } from "@/features/whatsapp/lib/text";
 import { findShop, getMemory, loadBooks, markReminded, pendingToRemind } from "@/features/whatsapp/server/books";
 import { sendTemplate, sendWhatsApp } from "@/features/whatsapp/server/meta";
+import { tellSubscriptionReady } from "@/features/whatsapp/server/subscription";
 
 export const maxDuration = 60;
 
@@ -91,6 +92,7 @@ async function sendCheckIns(now: Date): Promise<number> {
       const businessId = await findShop(phone);
       if (!businessId) continue;
       const memory = await getMemory(businessId);
+      if (!trialOpen(memory)) continue;
       const wanted = kinds.filter((kind) => memory.checkIns[kind]);
       if (wanted.length === 0) continue;
       const books = await loadBooks(businessId);
@@ -126,10 +128,11 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) return new Response("Unauthorized", { status: 401 });
   const now = new Date();
-  const [reminders, unsaved, checkIns] = await Promise.all([
+  const [reminders, unsaved, checkIns, subscription] = await Promise.all([
     sendDueReminders(now).catch((error) => (log("reminders run failed", error), 0)),
     remindUnsaved(now).catch((error) => (log("unsaved run failed", error), 0)),
     sendCheckIns(now).catch((error) => (log("check-ins run failed", error), 0)),
+    tellSubscriptionReady().catch((error) => (log("subscription notice failed", error), { waiting: 0, sent: 0 })),
   ]);
-  return Response.json({ reminders, unsaved, checkIns });
+  return Response.json({ reminders, unsaved, checkIns, subscription });
 }

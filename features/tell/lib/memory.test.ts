@@ -95,6 +95,7 @@ describe("parseMemory", () => {
       unsavedReminder: "30m",
       checkIns: { evening: true, weekly: true },
       trialUsed: 0,
+      subscriptionTold: false,
       description: "",
       catalog: [],
       socials: {},

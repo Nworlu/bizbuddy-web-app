@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { mergeCatalog, tidyLearned, tidySocials, type Learned } from "@/features/tell/lib/knowledge";
 import { IMAGE_MAX_BYTES, LearnError, learnFromImage, learnFromWebsite } from "@/features/tell/server/learn-business";
 import { findShop, getMemory, saveMemory } from "@/features/whatsapp/server/books";
-import { spendTrial, trialClosedMessage, trialOpen } from "@/features/tell/lib/memory";
+import { spendTrial, trialClosedMessage, trialFinishedMessage, trialOpen, TRIAL_MESSAGES } from "@/features/tell/lib/memory";
 import { phoneFromLoginEmail } from "@/shared/lib/phone";
 
 export const maxDuration = 60;
@@ -90,14 +90,16 @@ export async function POST(request: Request) {
   try {
     if (input.action === "read-website" && typeof input.url === "string") {
       const learned = await learnFromWebsite(input.url.slice(0, 500));
-      await saveMemory(businessId, spendTrial(memory));
-      return Response.json({ learned });
+      const next = spendTrial(memory);
+      await saveMemory(businessId, next);
+      return Response.json({ learned, ...(next.trialUsed === TRIAL_MESSAGES ? { trialNotice: trialFinishedMessage() } : {}) });
     }
     if (input.action === "read-image" && typeof input.data === "string" && typeof input.mime === "string") {
       if (input.data.length > Math.ceil((IMAGE_MAX_BYTES * 4) / 3) + 8) return reply(400, "That picture is too big. Use one under 5 MB.");
       const learned = await learnFromImage({ data: Buffer.from(input.data, "base64"), mime: input.mime });
-      await saveMemory(businessId, spendTrial(memory));
-      return Response.json({ learned });
+      const next = spendTrial(memory);
+      await saveMemory(businessId, next);
+      return Response.json({ learned, ...(next.trialUsed === TRIAL_MESSAGES ? { trialNotice: trialFinishedMessage() } : {}) });
     }
   } catch (error) {
     if (error instanceof LearnError) return reply(422, error.message);

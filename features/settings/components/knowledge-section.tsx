@@ -44,15 +44,16 @@ export function KnowledgeSection() {
     };
   }, []);
 
-  async function read(run: () => Promise<Learned>) {
+  async function read(run: () => Promise<{ learned: Learned; trialNotice?: string }>) {
     setReading(true);
     setError(null);
     setNote(null);
     setLearned(null);
     try {
       const result = await run();
-      if (learnedAnything(result)) setLearned(result);
+      if (learnedAnything(result.learned)) setLearned(result.learned);
       else setNote("BizBuddy couldn't find anything about your business in that. Try a screenshot of your page or price list.");
+      if (result.trialNotice) setNote(result.trialNotice);
     } catch (e) {
       setError(message(e, "BizBuddy couldn't read that just now. Try again."));
     } finally {
@@ -65,8 +66,9 @@ export function KnowledgeSection() {
     if (pictures.length === 0) return;
     await read(async () => {
       const results = await Promise.all(pictures.map(readImage));
-      const products = results.flatMap((r) => r.products);
-      return { description: results.find((r) => r.description)?.description ?? null, products, source: pictures.length > 1 ? "your pictures" : "your picture" };
+      const products = results.flatMap((r) => r.learned.products);
+      const trialNotice = results.find((r) => r.trialNotice)?.trialNotice;
+      return { learned: { description: results.find((r) => r.learned.description)?.learned.description ?? null, products, source: pictures.length > 1 ? "your pictures" : "your picture" }, ...(trialNotice ? { trialNotice } : {}) };
     });
     if (files.current) files.current.value = "";
   }
@@ -180,7 +182,7 @@ export function KnowledgeSection() {
           <button type="submit" disabled={knowledge === null} className="w-full rounded-xl bg-stone-100 py-2.5 text-sm font-medium text-ink hover:bg-stone-200 disabled:opacity-50">Save pages</button>
         </form>
 
-        {note && <p role="status" className="text-xs text-brand-800">{note}</p>}
+        {note && <p role="status" className="whitespace-pre-line text-xs text-brand-800">{note}</p>}
         {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
       </div>
     </section>

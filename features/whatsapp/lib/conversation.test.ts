@@ -619,6 +619,7 @@ describe("test messages", () => {
     await w.say("Sold a cap for 10k");
     expect(w.asked).toHaveLength(1);
     expect(w.memory().trialUsed).toBe(TRIAL_MESSAGES);
+    expect(w.sent.some((message) => message.body.includes("last test message") && message.body.includes("website"))).toBe(true);
 
     await w.say("Sold another cap");
     expect(w.asked).toHaveLength(1);

@@ -11,7 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { interpret, TellBusyError, TellRefusedError, tellProvider } from "@/features/tell/server/interpret";
 import { memoryFor, spendTrialFor } from "@/features/tell/server/memory";
 import { aboutSocials } from "@/features/tell/lib/knowledge";
-import { trialClosedMessage, TRIAL_MESSAGES } from "@/features/tell/lib/memory";
+import { trialClosedMessage, trialFinishedMessage, TRIAL_MESSAGES } from "@/features/tell/lib/memory";
 import { lagosClock } from "@/features/reminders/lib/when";
 
 const MAX_MESSAGE = 600;
@@ -86,9 +86,10 @@ export async function POST(request: Request) {
       memory: [prompt, noSocials].filter(Boolean).join("\n") || null,
       thread,
     });
-    await spendTrialFor(token);
+    const used = await spendTrialFor(token);
+    const trialNotice = used === TRIAL_MESSAGES ? trialFinishedMessage() : undefined;
     // With auto-save on, the app saves drafts that are safe to (features/tell/lib/autosave.ts) without asking.
-    return Response.json({ ...result, autoSave: autoSave === "on" });
+    return Response.json({ ...result, autoSave: autoSave === "on", ...(trialNotice ? { trialNotice } : {}) });
   } catch (error) {
     if (error instanceof TellRefusedError) return reply(422, "BizBuddy couldn't read that note. Try saying it another way.");
     if (error instanceof TellBusyError) return reply(503, "BizBuddy is busy right now. Try again in a minute.");

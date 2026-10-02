@@ -35,6 +35,6 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "Is there a fee?",
-    a: "The books are free. Tell BizBuddy and WhatsApp include 15 test messages. After that, new notes wait until a subscription is ready. There is no card to enter yet.",
+    a: "The books on the website are free. Each shop gets 15 test messages on Tell BizBuddy and WhatsApp. After that, the website still records sales, payments, and spending. WhatsApp notes, reminders to collect what you're owed, and the Sunday summary wait until a subscription is ready. There is no card to enter yet.",
   },
 ];

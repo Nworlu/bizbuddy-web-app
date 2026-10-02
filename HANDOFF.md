@@ -12,7 +12,7 @@ The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, o
 - **WhatsApp**: the owner texts BizBuddy's number, gets back what was understood with Save / Cancel, and Save records it in their books. See decision 23.
 - **A WhatsApp welcome message** on first sign-up. See decision 24.
 - **Sale or expense?**, **auto-save**, **asking for missing details**, and **reminders**, on WhatsApp and in Tell BizBuddy. See decisions 25–31.
-- **A test of 15 messages** on Tell BizBuddy and WhatsApp (a note, a voice note, a photo, or a website). Save and Cancel do not count. After 15, new notes wait until a subscription exists. The books on the phone stay open. The count is `trialUsed` in shop memory, so no new migration.
+- **A test of 15 messages per shop** on Tell BizBuddy and WhatsApp (a note, a voice note, a photo, or a website). Save and Cancel do not count. The 15th note tells that shop it was the last one: the website stays free for sales, payments, and spending; a subscription later brings WhatsApp notes, reminders to collect what's owed, and the Sunday summary. Further notes get that explanation and are not read. Evening check-ins and the Sunday summary stop for that shop. When `WHATSAPP_SUBSCRIPTION_TEMPLATE` is set, the reminder scheduler messages each waiting shop once that a subscription is ready (`features/whatsapp/server/subscription.ts`). The count is `trialUsed` in that shop's memory, so no new migration.
 
 **What's happening now (30 Sep 2026):** WhatsApp is being tested live on **Meta's test number**. The app runs on the laptop (`next start -p 3600`) behind an **ngrok** tunnel, and Meta's webhook points at that tunnel. Tested so far:
 - The welcome message arrives on sign-up, using Meta's `hello_world` template.

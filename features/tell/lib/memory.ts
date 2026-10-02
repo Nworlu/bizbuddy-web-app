@@ -35,9 +35,11 @@ export type ShopMemory = {
   checkIns: CheckIns;
   /**
    * Notes read during the test, before a subscription exists. Each Tell BizBuddy note,
-   * WhatsApp note, voice note, photo, or website read counts as one. Save and Cancel do not.
+   * WhatsApp note, voice note, photo, or website read counts as one, for this shop only. Save and Cancel do not.
    */
   trialUsed: number;
+  /** The "subscription is ready" WhatsApp has been sent. Until then, this shop is waiting for it. */
+  subscriptionTold: boolean;
   /** From their own page or price list (lib/knowledge.ts), confirmed by the owner. */
   description: string;
   catalog: CatalogItem[];
@@ -51,7 +53,7 @@ export const UNSAVED_REMINDERS: readonly UnsavedReminder[] = ["30m", "2h", "neve
 export const unsavedReminderMinutes = (choice: UnsavedReminder): number | null => (choice === "30m" ? 30 : choice === "2h" ? 120 : null);
 const AUTO_SAVE_STATES: readonly AutoSave[] = ["off", "offered", "on", "declined"];
 
-export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off", unsavedReminder: "30m", checkIns: DEFAULT_CHECK_INS, trialUsed: 0, description: "", catalog: [], socials: {} };
+export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off", unsavedReminder: "30m", checkIns: DEFAULT_CHECK_INS, trialUsed: 0, subscriptionTold: false, description: "", catalog: [], socials: {} };
 
 /** How many notes a shop can try before a subscription exists. */
 export const TRIAL_MESSAGES = 15;
@@ -66,7 +68,16 @@ export function spendTrial(memory: ShopMemory): ShopMemory {
 }
 
 export function trialClosedMessage(): string {
-  return `You've used your ${TRIAL_MESSAGES} test messages. BizBuddy will read new notes again once a subscription is ready. Your books stay, and you can still record a sale in the app.`;
+  return `Your ${TRIAL_MESSAGES} test messages are used. The website still keeps this shop's sales, payments, and spending, with no subscription. I'll message you when a subscription is ready, so WhatsApp notes, reminders to collect what you're owed, and the Sunday summary can continue.`;
+}
+
+/** Sent with the note that uses the last test message. */
+export function trialFinishedMessage(): string {
+  return [
+    "That was your last test message.",
+    "Keep recording sales, payments, and what you spent on the BizBuddy website. That stays free.",
+    "A subscription is how this shop keeps going beyond the website: writing the sale on WhatsApp, reminders to collect what you're owed, and the Sunday summary. I'll message you here when it's ready.",
+  ].join("\n\n");
 }
 
 function clip(value: string, max: number): string {
@@ -214,7 +225,7 @@ export function parseMemory(value: unknown): ShopMemory {
     : [];
   const streak = typeof row.streak === "number" && Number.isSafeInteger(row.streak) && row.streak > 0 ? row.streak : 0;
   const trialUsed = typeof row.trialUsed === "number" && Number.isSafeInteger(row.trialUsed) && row.trialUsed > 0 ? row.trialUsed : 0;
-  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off", unsavedReminder: oneOf(row.unsavedReminder, UNSAVED_REMINDERS) ?? "30m", checkIns: parseCheckIns(row.checkIns), trialUsed, ...parseKnowledge(row) };
+  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off", unsavedReminder: oneOf(row.unsavedReminder, UNSAVED_REMINDERS) ?? "30m", checkIns: parseCheckIns(row.checkIns), trialUsed, subscriptionTold: row.subscriptionTold === true, ...parseKnowledge(row) };
 }
 
 function parseKnowledge(row: Record<string, unknown>): Pick<ShopMemory, "description" | "catalog" | "socials"> {

@@ -14,7 +14,7 @@ import { formatNaira } from "@/shared/lib/format";
 import { added, AUTO_SAVE_AFTER, needsAsking, offerDue, reviewed, undo, withAutoSave, type Undo } from "@/features/tell/lib/autosave";
 import { shopProfile } from "@/features/tell/lib/profile";
 import { aboutSocials, describeLearned, learnedAnything, mergeCatalog, onlyLink, SOCIAL_LABELS, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
-import { learn, memoryForPrompt, spendTrial, trialClosedMessage, trialOpen, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
+import { learn, memoryForPrompt, spendTrial, trialClosedMessage, trialFinishedMessage, trialOpen, TRIAL_MESSAGES, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
 import { dueFrom, formatWhen, lagosClock, reminderList, snoozed, type Reminder } from "@/features/reminders/lib/when";
 import { normalizeWhatsAppSender } from "@/shared/lib/phone";
 import type { BizData } from "@/shared/lib/types";
@@ -242,6 +242,7 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     actions = personalize(result.actions, chat);
     memory = spendTrial(memory);
     await deps.saveMemory(chat.businessId, memory);
+    if (memory.trialUsed === TRIAL_MESSAGES) await deps.send(to, trialFinishedMessage());
   } catch (error) {
     return say(deps.isBusy(error) ? "I'm busy right now. Send that again in a minute." : "Sorry, I couldn't read that just now. Try again, or record it in the app.");
   }
@@ -375,12 +376,15 @@ async function learnFrom(read: () => Promise<Learned>, phone: string, to: string
   } catch (error) {
     return deps.send(to, deps.learn.problem(error) ?? "Sorry, I couldn't read that just now. Try again in a moment.");
   }
-  await deps.saveMemory(chat.businessId, spendTrial(memory));
+  const next = spendTrial(memory);
+  await deps.saveMemory(chat.businessId, next);
   if (!learnedAnything(learned)) {
+    if (next.trialUsed === TRIAL_MESSAGES) await deps.send(to, trialFinishedMessage());
     return deps.send(to, "I couldn't find anything about your business in that. I learn from screenshots of your Instagram or WhatsApp catalogue, photos of your price list, or your website.");
   }
   await deps.setPending(phone, { businessId: chat.businessId, note: `(${learned.source})`, drafts: [], learn: learned });
-  return deps.send(to, describeLearned(learned), BUTTONS);
+  await deps.send(to, describeLearned(learned), BUTTONS);
+  if (next.trialUsed === TRIAL_MESSAGES) await deps.send(to, trialFinishedMessage());
 }
 
 /** Sets each reminder that says when, confirming it with a Cancel button. True if one had no time. */

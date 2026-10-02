@@ -11,7 +11,7 @@ import type { BizData } from "@/shared/lib/types";
 import type { Draft } from "@/features/tell/lib/intents";
 import type { Either, LastAutoSave, Pending } from "@/features/whatsapp/lib/conversation";
 import type { Learned } from "@/features/tell/lib/knowledge";
-import { EMPTY_MEMORY, parseMemory, type ShopMemory } from "@/features/tell/lib/memory";
+import { EMPTY_MEMORY, parseMemory, TRIAL_MESSAGES, type ShopMemory } from "@/features/tell/lib/memory";
 import { parseTurns, type Turn } from "@/features/whatsapp/lib/thread";
 
 let client: SupabaseClient | undefined;
@@ -214,6 +214,27 @@ export async function getMemory(businessId: string): Promise<ShopMemory> {
 export async function saveMemory(businessId: string, memory: ShopMemory): Promise<void> {
   const { error } = await db().from("shop_memory").upsert({ business_id: businessId, memory, updated_at: new Date().toISOString() });
   if (error) throw error;
+}
+
+/** Shops that used their test messages and have not yet been told a subscription is ready. */
+export async function shopsWaitingForSubscription(): Promise<{ businessId: string; phone: string; ownerName: string; shopName: string }[]> {
+  const { data, error } = await db().from("shop_memory").select("business_id, memory");
+  if (error) throw error;
+  const ids = (data ?? [])
+    .filter((row) => {
+      const memory = parseMemory(row.memory);
+      return memory.trialUsed >= TRIAL_MESSAGES && !memory.subscriptionTold;
+    })
+    .map((row) => row.business_id as string);
+  if (ids.length === 0) return [];
+  const { data: shops, error: shopError } = await db().from("businesses").select("id, phone, owner_name, name").in("id", ids);
+  if (shopError) throw shopError;
+  return (shops ?? []).map((shop) => ({
+    businessId: shop.id as string,
+    phone: String(shop.phone ?? ""),
+    ownerName: String(shop.owner_name ?? ""),
+    shopName: String(shop.name ?? ""),
+  }));
 }
 
 /** The last few lines of this WhatsApp chat, so a follow-up stays on the same question. Empty if the table isn't there yet. */

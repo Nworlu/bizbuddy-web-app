@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { continueTalk, remember, WHAT_YOU_CAN_ASK, type Turn } from "./thread";
+import { archive, continueTalk, remember, threadPrompt, WHAT_YOU_CAN_ASK, type Turn } from "./thread";
 
 const made: Turn[] = [
   { who: "owner", text: "How much did I make yesterday?" },
@@ -44,5 +44,18 @@ describe("continueTalk", () => {
 
   it("leaves a sale for the reader", () => {
     expect(continueTalk("Sold 2 shoes to David for 85k, he paid 50k", made)).toBeNull();
+  });
+});
+
+describe("archive", () => {
+  it("keeps the tell chat, and only the last lines go with the next note", () => {
+    let turns: Turn[] = [];
+    for (let i = 0; i < 20; i++) turns = archive(turns, `note ${i}`, "ok");
+    expect(turns).toHaveLength(40);
+    expect(turns[0].text).toBe("note 0");
+    const prompt = threadPrompt(turns)!;
+    expect(prompt).toContain("note 19");
+    expect(prompt).not.toContain("note 0");
+    expect(remember([], "sold shoes", "a sale")).toHaveLength(2);
   });
 });

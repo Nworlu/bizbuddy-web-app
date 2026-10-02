@@ -15,23 +15,92 @@ import { PhoneInput } from "@/shared/ui/phone-input";
 import { AccountSection } from "../components/account-section";
 import { RemindersSection } from "../components/reminders-section";
 import { KnowledgeSection } from "../components/knowledge-section";
+import { SettingsFrame } from "../components/settings-frame";
+import { settingsLinks } from "../content/links";
+import { ChevronRightIcon } from "@/shared/ui/icons";
 
 export function SettingsPage() {
-  const { data, business } = useBiz();
+  const { data } = useBiz();
   const signedIn = useSyncMeta() !== null;
+  const links = settingsLinks({ accounts: accountsEnabled(), signedIn, demo: !!data.demo });
 
   return (
-    <div className="mx-auto max-w-lg space-y-5 px-4 py-6 md:px-8 md:py-8">
+    <div className="mx-auto max-w-lg px-4 py-6 md:px-8 md:py-8">
       <h1 className="text-2xl font-bold text-ink">Settings</h1>
-      {accountsEnabled() && <AccountSection data={data} business={business} />}
-      {accountsEnabled() && signedIn && !data.demo && <RemindersSection />}
-      {accountsEnabled() && signedIn && !data.demo && <KnowledgeSection />}
-      <BusinessSection business={business} />
-      <DataSection data={data} signedIn={signedIn} />
-      {/* Signed in, these would wipe the account's books: log out instead. */}
-      {!signedIn && <DangerSection data={data} business={business} />}
-      <p className="pt-2 text-center text-xs text-ink-muted">BizBuddy V0.1 · Made for Nigerian small businesses</p>
+      <p className="mt-1 text-sm text-ink-muted">Each part is its own page.</p>
+      <ul className="mt-5 space-y-3">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link href={link.href} className="flex items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white px-5 py-4 hover:bg-stone-50">
+              <span>
+                <span className="block text-sm font-semibold text-ink">{link.label}</span>
+                <span className="mt-0.5 block text-xs text-ink-muted">{link.detail}</span>
+              </span>
+              <ChevronRightIcon className="size-4 shrink-0 text-ink-muted" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="pt-6 text-center text-xs text-ink-muted">BizBuddy V0.1 · Made for Nigerian small businesses</p>
     </div>
+  );
+}
+
+export function AccountSettings() {
+  const { data, business } = useBiz();
+  return (
+    <SettingsFrame title="Account">
+      {accountsEnabled() && !data.demo ? <AccountSection data={data} business={business} /> : <p className="text-sm text-ink-muted">This shop doesn&apos;t use an account.</p>}
+    </SettingsFrame>
+  );
+}
+
+export function BusinessSettings() {
+  const { business } = useBiz();
+  return (
+    <SettingsFrame title="Business">
+      <BusinessSection business={business} />
+    </SettingsFrame>
+  );
+}
+
+export function ReminderSettings() {
+  const { data } = useBiz();
+  const signedIn = useSyncMeta() !== null;
+  return (
+    <SettingsFrame title="Reminders">
+      {accountsEnabled() && signedIn && !data.demo ? <RemindersSection /> : <p className="text-sm text-ink-muted">Reminders are available once this shop is backed up.</p>}
+    </SettingsFrame>
+  );
+}
+
+export function ShopSettings() {
+  const { data } = useBiz();
+  const signedIn = useSyncMeta() !== null;
+  return (
+    <SettingsFrame title="Your shop">
+      {accountsEnabled() && signedIn && !data.demo ? <KnowledgeSection /> : <p className="text-sm text-ink-muted">What BizBuddy knows is available once this shop is backed up.</p>}
+    </SettingsFrame>
+  );
+}
+
+export function RecordsSettings() {
+  const { data } = useBiz();
+  const signedIn = useSyncMeta() !== null;
+  return (
+    <SettingsFrame title="Records">
+      <DataSection data={data} signedIn={signedIn} />
+    </SettingsFrame>
+  );
+}
+
+export function StartOverSettings() {
+  const { data, business } = useBiz();
+  const signedIn = useSyncMeta() !== null;
+  return (
+    <SettingsFrame title="Start over">
+      {signedIn ? <p className="text-sm text-ink-muted">Log out from Account first. Deleting here would wipe the account&apos;s books.</p> : <DangerSection data={data} business={business} />}
+    </SettingsFrame>
   );
 }
 

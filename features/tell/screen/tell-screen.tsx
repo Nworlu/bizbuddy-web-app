@@ -15,7 +15,7 @@ import { createReminder } from "@/features/reminders/lib/client";
 import { dueFrom, type Reminder } from "@/features/reminders/lib/when";
 import { AUTO_SAVE_AFTER, needsAsking, type Undo } from "../lib/autosave";
 import { eitherDrafts, toDraft, type Draft, type Interpretation } from "../lib/intents";
-import { canTell, setAutoSave, TellError, tellBizBuddy } from "../lib/client";
+import { accountThread, canTell, setAutoSave, storeAccountThread, TellError, tellBizBuddy } from "../lib/client";
 import { getKnowledge } from "../lib/knowledge-client";
 import type { Socials } from "../lib/knowledge";
 import { loadThread, localTalk, remember, rememberedReply, saveThread, threadPrompt, transcript, type Turn } from "../lib/talk";
@@ -127,6 +127,7 @@ export function TellPage() {
     });
     turns.current = remember(turns.current, text, rememberedReply(parts));
     saveThread(business.id, turns.current);
+    storeAccountThread(turns.current);
   }
 
   function read(id: number, text: string) {
@@ -149,6 +150,23 @@ export function TellPage() {
       setMessages((current) => (current.length > 0 ? current : prior.map((line, index) => ({ id: index, text: line.text, replies: line.reply ? [{ kind: "text" as const, text: line.reply }] : [] }))));
     }
     if (canTell()) getKnowledge().then((known) => { socials.current = known.socials; }).catch(() => { socials.current = {}; });
+    if (!canTell()) return;
+    let live = true;
+    accountThread().then((remote) => {
+      if (!live || !remote || turns.current !== saved) return;
+      if (remote.length > 0) {
+        turns.current = remote;
+        saveThread(business.id, remote);
+        if (!firstNote) {
+          const prior = transcript(remote);
+          nextId.current = Math.max(nextId.current, prior.length);
+          setMessages((current) => (current.length > 0 ? current : prior.map((line, index) => ({ id: index, text: line.text, replies: line.reply ? [{ kind: "text" as const, text: line.reply }] : [] }))));
+        }
+      } else if (saved.length > 0) storeAccountThread(saved);
+    });
+    return () => {
+      live = false;
+    };
   }, [business.id, firstNote]);
 
   useEffect(() => {
@@ -158,6 +176,7 @@ export function TellPage() {
     if (local) {
       turns.current = local.turns;
       saveThread(business.id, turns.current);
+      storeAccountThread(turns.current);
       resolve(0, local.answer ? [{ kind: "answer", answer: local.answer }] : [{ kind: "text", text: local.text }]);
       return;
     }
@@ -183,6 +202,7 @@ export function TellPage() {
     if (local) {
       turns.current = local.turns;
       saveThread(business.id, turns.current);
+      storeAccountThread(turns.current);
       setMessages((current) => [...current, { id, text, replies: local.answer ? [{ kind: "answer", answer: local.answer }] : [{ kind: "text", text: local.text }] }]);
       setInput("");
       return;

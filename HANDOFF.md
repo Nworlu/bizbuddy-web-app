@@ -12,6 +12,8 @@ The V0.1 web app is in `bizbuddy-web-app/`. **Done:** the public landing page, o
 - **WhatsApp**: the owner texts BizBuddy's number, gets back what was understood with Save / Cancel, and Save records it in their books. See decision 23.
 - **A WhatsApp welcome message** on first sign-up. See decision 24.
 - **Sale or expense?**, **auto-save**, **asking for missing details**, and **reminders**, on WhatsApp and in Tell BizBuddy. See decisions 25–31.
+- **Settings is a list of pages.** Account, business, reminders, what BizBuddy knows, records, chat, and start over each have their own page. On a wide screen, Settings in the side bar opens to those links.
+- **The Tell BizBuddy chat is kept** on this phone and, with an account, on the shop (`tell_threads`, migration 0012). The next note only sees the last few lines. Settings → Chat can clear that chat and the WhatsApp chat. Saved sales, and what was learned from notes they confirmed, stay.
 - **Subscription, marked coming soon.** The landing page and `/billing` show three plans: Books at ₦0, Shop at ₦8,000 a month, and Counter at ₦15,000 a month. Counter is marked recommended. Nothing charges. The dashboard card points at Counter. Nav links on the landing page scroll to the section.
 - **A test of 15 messages per shop** on Tell BizBuddy and WhatsApp (a note, a voice note, a photo, or a website). Save and Cancel do not count. The 15th note tells that shop it was the last one: the website stays free for sales, payments, and spending; a subscription later brings WhatsApp notes, reminders to collect what's owed, and the Sunday summary. Further notes get that explanation and are not read. Evening check-ins and the Sunday summary stop for that shop. When `WHATSAPP_SUBSCRIPTION_TEMPLATE` is set, the reminder scheduler messages each waiting shop once that a subscription is ready (`features/whatsapp/server/subscription.ts`). The count is `trialUsed` in that shop's memory, so no new migration.
 
@@ -117,7 +119,7 @@ app/
   api/whatsapp/remind/route.ts GET (scheduler, CRON_SECRET): due reminders, and one reminder per note left waiting on Save / Cancel
   api/reminders/route.ts       GET / POST / DELETE / PATCH: the signed-in owner's reminders and unsaved-note setting (phone from the login)
   (app)/billing/page.tsx       Billing: current plan (Books, free), Shop coming soon, payment method, invoices, next charge. Nothing charges.
-  (app)/settings/page.tsx      Settings: account (back up / status / log out / delete account), business details, record counts, sample shop, delete everything
+  (app)/settings/page.tsx      Settings: a short list of pages (account, business, reminders, your shop, records, chat, start over)
   login/page.tsx               log in with phone + password
 
 features/

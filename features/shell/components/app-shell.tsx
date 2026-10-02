@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useBizData, useSyncMeta } from "@/shared/lib/store";
+import { accountsEnabled } from "@/shared/lib/supabase";
 import { startSyncing, useSyncStatus } from "@/shared/lib/sync-runner";
-import { AskIcon, BillingIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
+import { settingsLinks } from "@/features/settings/content/links";
+import { AskIcon, BillingIcon, ChevronRightIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
 import { Logo } from "@/shared/ui/logo";
 import { OfflineBanner } from "@/shared/ui/offline-banner";
 import { BizContext } from "../hooks/use-biz";
@@ -20,7 +22,6 @@ const NAV: NavItem[] = [
   { href: "/customers", label: "Customers", icon: <CustomersIcon /> },
   { href: "/ask", label: "Tell BizBuddy", icon: <AskIcon /> },
   { href: "/billing", label: "Billing", icon: <BillingIcon /> },
-  { href: "/settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
 const QUICK_ACTIONS = [
@@ -62,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow">
         Skip to content
       </a>
-      <Sidebar businessName={business.name} />
+      <Sidebar businessName={business.name} signedIn={!!meta} demo={!!data.demo} />
       <MobileHeader businessName={business.name} />
       <main id="main" className="pb-28 md:pb-10 md:pl-60">
         <OfflineBanner />
@@ -100,7 +101,7 @@ function ToastHost() {
   );
 }
 
-function Sidebar({ businessName }: { businessName: string }) {
+function Sidebar({ businessName, signedIn, demo }: { businessName: string; signedIn: boolean; demo: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-stone-200 bg-white md:flex">
@@ -126,6 +127,7 @@ function Sidebar({ businessName }: { businessName: string }) {
             </Link>
           );
         })}
+        <SettingsNav pathname={pathname} signedIn={signedIn} demo={demo} />
       </nav>
       <div className="space-y-2 px-4 pb-6">
         <Link href="/sales/new" className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-800">
@@ -137,6 +139,44 @@ function Sidebar({ businessName }: { businessName: string }) {
         </Link>
       </div>
     </aside>
+  );
+}
+
+function SettingsNav({ pathname, signedIn, demo }: { pathname: string; signedIn: boolean; demo: boolean }) {
+  const here = pathname.startsWith("/settings");
+  const [open, setOpen] = useState(here);
+  useEffect(() => {
+    if (here) setOpen(true);
+  }, [here]);
+  const links = settingsLinks({ accounts: accountsEnabled(), signedIn, demo });
+  const row = here ? "bg-brand-50 text-brand-700" : "text-ink-muted hover:bg-stone-50 hover:text-ink";
+
+  return (
+    <div>
+      <div className={`flex items-center rounded-xl ${row}`}>
+        <Link href="/settings" aria-current={pathname === "/settings" ? "page" : undefined} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm font-medium">
+          <SettingsIcon />
+          Settings
+        </Link>
+        <button type="button" aria-expanded={open} aria-label={open ? "Hide settings pages" : "Show settings pages"} onClick={() => setOpen((value) => !value)} className="mr-1 rounded-lg p-2">
+          <ChevronRightIcon className={`size-4 transition-transform ${open ? "rotate-90" : ""}`} />
+        </button>
+      </div>
+      {open && (
+        <ul className="mt-0.5 space-y-0.5 pl-8">
+          {links.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <li key={link.href}>
+                <Link href={link.href} aria-current={active ? "page" : undefined} className={`block rounded-xl px-3 py-2 text-sm ${active ? "font-semibold text-brand-700" : "text-ink-muted hover:bg-stone-50 hover:text-ink"}`}>
+                  {link.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

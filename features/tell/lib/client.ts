@@ -6,6 +6,7 @@ import { accountsEnabled, supabase } from "@/shared/lib/supabase";
 import type { BizData } from "@/shared/lib/types";
 import type { Review } from "./autosave";
 import { parseInterpretation, type Draft, type Interpretation } from "./intents";
+import { parseArchive, type Turn } from "@/features/whatsapp/lib/thread";
 import type { AutoSave } from "./memory";
 
 /** Tell BizBuddy reads notes on the server, so it needs an account and a connection. */
@@ -82,6 +83,38 @@ export async function setAutoSave(on: boolean): Promise<boolean> {
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ on }),
     });
+    return response.ok;
+  }, false);
+}
+
+/** The Tell BizBuddy chat kept on this shop's account. Null when it can't be read. */
+export async function accountThread(): Promise<Turn[] | null> {
+  if (!canTell()) return null;
+  return withSession(async (token) => {
+    const response = await fetch("/api/tell/thread", { headers: { authorization: `Bearer ${token}` } });
+    const body = await response.json().catch(() => null);
+    return response.ok ? parseArchive(body?.turns) : null;
+  }, null);
+}
+
+/** Saves the chat on the account so another phone can follow how this owner writes. */
+export function storeAccountThread(turns: Turn[]): void {
+  if (!canTell()) return;
+  void withSession(async (token) => {
+    await fetch("/api/tell/thread", {
+      method: "PUT",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ turns }),
+    });
+    return true;
+  }, false);
+}
+
+/** Removes the Tell BizBuddy chat and the WhatsApp chat kept for this shop. Saved notes stay. */
+export async function clearStoredChats(): Promise<boolean> {
+  if (!canTell()) return false;
+  return withSession(async (token) => {
+    const response = await fetch("/api/tell/thread", { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
     return response.ok;
   }, false);
 }

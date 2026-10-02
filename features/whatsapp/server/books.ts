@@ -249,6 +249,13 @@ export async function saveThread(phone: string, turns: Turn[]): Promise<void> {
   if (error) console.error("WhatsApp: couldn't keep the chat", error.message);
 }
 
+/** Drops the WhatsApp chat kept for this number. The books stay. */
+export async function clearWhatsAppThread(phone: string): Promise<void> {
+  if (!phone) return;
+  const { error } = await db().from("whatsapp_thread").delete().eq("phone", phone);
+  if (error && error.code !== "42P01" && error.code !== "PGRST205") console.error("WhatsApp: couldn't clear the chat", error.message);
+}
+
 /** Claims the one welcome for this account. False when it was already welcomed. */
 export async function claimWelcome(userId: string, phone: string): Promise<boolean> {
   const { error } = await db().from("whatsapp_welcomes").insert({ user_id: userId, phone });

@@ -4,11 +4,11 @@
 
 import { answerTopic, owingDetail, type Answer } from "@/features/ask/lib/answer";
 import { aboutSocials, type Socials } from "@/features/tell/lib/knowledge";
-import { continueTalk, parseTurns, remember, threadPrompt, WHAT_YOU_CAN_ASK, type Turn } from "@/features/whatsapp/lib/thread";
+import { continueTalk, parseArchive, archive, threadPrompt, WHAT_YOU_CAN_ASK, type Turn } from "@/features/whatsapp/lib/thread";
 import type { BizData } from "@/shared/lib/types";
 
 export type { Turn };
-export { threadPrompt, remember };
+export { threadPrompt, archive as remember };
 
 export type LocalReply = { turns: Turn[]; text: string; answer?: Answer };
 
@@ -21,7 +21,7 @@ export function localTalk(message: string, turns: Turn[], data: BizData, socials
     if (continued.kind === "help") return packed(message, WHAT_YOU_CAN_ASK.replace(/_/g, ""), turns);
     if (continued.kind === "chat") return packed(message, continued.reply, turns);
     const answer = continued.detail ? owingDetail(data) : answerTopic(continued.topic, continued.customer, continued.period, data, now);
-    return { turns: remember(turns, message, answer.text), text: answer.text, answer };
+    return { turns: archive(turns, message, answer.text), text: answer.text, answer };
   }
   if (!socials) return null;
   const social = aboutSocials(message, socials);
@@ -29,7 +29,7 @@ export function localTalk(message: string, turns: Turn[], data: BizData, socials
 }
 
 function packed(message: string, text: string, turns: Turn[]): LocalReply {
-  return { turns: remember(turns, message, text), text };
+  return { turns: archive(turns, message, text), text };
 }
 
 /** A short line to keep, from whatever BizBuddy just showed. */
@@ -54,7 +54,7 @@ export function transcript(turns: Turn[]): { text: string; reply: string }[] {
 export function loadThread(businessId?: string): Turn[] {
   if (typeof localStorage === "undefined") return [];
   try {
-    return parseTurns(JSON.parse(localStorage.getItem(KEY(businessId)) ?? "null"));
+    return parseArchive(JSON.parse(localStorage.getItem(KEY(businessId)) ?? "null"));
   } catch {
     return [];
   }

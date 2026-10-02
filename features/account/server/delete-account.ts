@@ -6,7 +6,7 @@
 // id itself carries the sender's number, so those that belong to this login are deleted too.
 
 /** Rows that belong to the shop. Each has business_id and cascades from businesses, but they are deleted explicitly so a missing cascade cannot leave them. */
-export const SHOP_TABLES = ["customers", "sales", "payments", "expenses", "shop_memory", "whatsapp_pending", "whatsapp_focus", "reminders", "check_ins"] as const;
+export const SHOP_TABLES = ["customers", "sales", "payments", "expenses", "shop_memory", "tell_threads", "whatsapp_pending", "whatsapp_focus", "reminders", "check_ins"] as const;
 
 /** Rows keyed only by the owner's phone, with no shop id. */
 export const PHONE_ONLY_TABLES = ["whatsapp_chats", "whatsapp_thread"] as const;

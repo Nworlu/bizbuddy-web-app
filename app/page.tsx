@@ -1,27 +1,39 @@
 import type { Metadata } from "next";
 import { LandingScreen } from "@/features/marketing/screen/landing-screen";
 import { FAQ } from "@/features/marketing/content/faq";
+import { SITE_DESCRIPTION, SITE_TITLE, siteUrl } from "@/shared/lib/site";
 
 export const metadata: Metadata = {
-  title: "BizBuddy — run the shop from one book",
-  description: "A book for Nigerian shops. Record what you sold, what came in, and what you spent.",
-  openGraph: {
-    title: "BizBuddy — run the shop from one book",
-    description: "Record what you sold, what came in, and what you spent.",
-    locale: "en_NG",
-    type: "website",
-  },
+  title: { absolute: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: { title: SITE_TITLE, description: SITE_DESCRIPTION, url: "/" },
 };
 
 export default function HomePage() {
+  const url = siteUrl().origin;
   const schema = {
     "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: FAQ.map((item) => ({
-      "@type": "Question",
-      name: item.q,
-      acceptedAnswer: { "@type": "Answer", text: item.a },
-    })),
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        name: "BizBuddy",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        url,
+        description: SITE_DESCRIPTION,
+        inLanguage: "en-NG",
+        offers: { "@type": "Offer", price: "0", priceCurrency: "NGN" },
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQ.map((item) => ({
+          "@type": "Question",
+          name: item.q,
+          acceptedAnswer: { "@type": "Answer", text: item.a },
+        })),
+      },
+    ],
   };
 
   return (

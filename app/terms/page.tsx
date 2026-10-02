@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { LegalShell } from "@/features/marketing/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Terms and conditions — BizBuddy",
+  title: "Terms and conditions",
   description: "The terms for using BizBuddy to keep your shop's sales, money in, and spending.",
+  alternates: { canonical: "/terms" },
+  openGraph: { title: "Terms and conditions — BizBuddy", url: "/terms" },
 };
 
 const UPDATED = "1 October 2026";

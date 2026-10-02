@@ -86,7 +86,9 @@ Routes in `app/` are thin. A route imports a screen; the screen owns its UI.
 
 ```
 app/
-  page.tsx                     public landing page
+  page.tsx                     public landing page (title, description, FAQ and app schema)
+  robots.ts, sitemap.ts        search engines: home, privacy, and terms only
+  opengraph-image.tsx          link-preview image (the shop mark plus the headline)
   welcome/page.tsx             onboarding (welcome, name + phone, business); demo via ?demo=1
   privacy/page.tsx, terms/page.tsx  privacy policy and terms; phone-first books, the account backup, Tell BizBuddy, and WhatsApp
   (app)/layout.tsx             AppShell

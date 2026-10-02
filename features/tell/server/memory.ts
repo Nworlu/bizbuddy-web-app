@@ -5,7 +5,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { offerDue, reviewed, withAutoSave, type Review } from "../lib/autosave";
 import { shopProfile } from "../lib/profile";
-import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, confirmedDraft, type AutoSave, type ShopMemory } from "../lib/memory";
+import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, confirmedDraft, spendTrial, type AutoSave, type ShopMemory } from "../lib/memory";
 import type { Socials } from "../lib/knowledge";
 
 function db(token: string) {
@@ -19,15 +19,15 @@ function db(token: string) {
  * What to send with the next note: who the owner and shop are (profile), what this shop has taught
  * BizBuddy (prompt), and whether to save without asking. Parts are null when there's nothing yet.
  */
-export async function memoryFor(token: string): Promise<{ profile: string | null; prompt: string | null; autoSave: AutoSave; socials: Socials }> {
+export async function memoryFor(token: string): Promise<{ profile: string | null; prompt: string | null; autoSave: AutoSave; socials: Socials; trialUsed: number }> {
   const client = db(token);
-  if (!client) return { profile: null, prompt: null, autoSave: "off", socials: {} };
+  if (!client) return { profile: null, prompt: null, autoSave: "off", socials: {}, trialUsed: 0 };
   // Row level security limits both to the owner's own shop.
   const [{ data: shop }, { data, error }] = await Promise.all([client.from("businesses").select("*").maybeSingle(), client.from("shop_memory").select("memory").maybeSingle()]);
   const profile = shop ? shopProfile({ name: shop.name, ownerName: shop.owner_name, type: shop.type, about: shop.about }) : null;
-  if (error || !data) return { profile, prompt: null, autoSave: "off", socials: {} };
+  if (error || !data) return { profile, prompt: null, autoSave: "off", socials: {}, trialUsed: 0 };
   const memory = parseMemory(data.memory);
-  return { profile, prompt: memoryForPrompt(memory), autoSave: memory.autoSave, socials: memory.socials };
+  return { profile, prompt: memoryForPrompt(memory), autoSave: memory.autoSave, socials: memory.socials, trialUsed: memory.trialUsed };
 }
 
 /** Loads this owner's memory, lets `change` update it, and saves it if it changed. Null when that isn't possible. */
@@ -68,4 +68,9 @@ export async function autoSaveFor(token: string): Promise<AutoSave> {
 /** Turns auto-save on, or off ("declined": BizBuddy won't offer again; Settings can turn it back on). */
 export async function setAutoSave(token: string, on: boolean): Promise<boolean> {
   return (await updateMemory(token, (memory) => withAutoSave(memory, on ? "on" : "declined"))) !== null;
+}
+
+/** Counts one test note after it was read. A failed read does not call this. */
+export async function spendTrialFor(token: string): Promise<void> {
+  await updateMemory(token, spendTrial);
 }

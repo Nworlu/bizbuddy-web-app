@@ -9,8 +9,9 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { interpret, TellBusyError, TellRefusedError, tellProvider } from "@/features/tell/server/interpret";
-import { memoryFor } from "@/features/tell/server/memory";
+import { memoryFor, spendTrialFor } from "@/features/tell/server/memory";
 import { aboutSocials } from "@/features/tell/lib/knowledge";
+import { trialClosedMessage, TRIAL_MESSAGES } from "@/features/tell/lib/memory";
 import { lagosClock } from "@/features/reminders/lib/when";
 
 const MAX_MESSAGE = 600;
@@ -68,9 +69,10 @@ export async function POST(request: Request) {
   if (!today) return reply(400, "Bad request.");
 
   try {
-    const { profile, prompt, autoSave, socials } = await memoryFor(token);
+    const { profile, prompt, autoSave, socials, trialUsed } = await memoryFor(token);
     const known = aboutSocials(message, socials);
     if (known) return Response.json({ actions: [{ kind: "unclear", reply: known }], autoSave: false });
+    if (trialUsed >= TRIAL_MESSAGES) return reply(403, trialClosedMessage());
     const thread = typeof body.thread === "string" ? body.thread.slice(0, 2500) : null;
     const noSocials = Object.values(socials).some(Boolean) ? null : "No social accounts are saved for this shop yet. If they ask, say they aren't connected yet. Never invent a handle.";
     const chatWith = `The owner is writing in Tell BizBuddy. Talk with them like a person. Answer what they just said. Don't greet them. Don't offer a menu.${profile ? ` ${profile}` : ""}`;
@@ -84,6 +86,7 @@ export async function POST(request: Request) {
       memory: [prompt, noSocials].filter(Boolean).join("\n") || null,
       thread,
     });
+    await spendTrialFor(token);
     // With auto-save on, the app saves drafts that are safe to (features/tell/lib/autosave.ts) without asking.
     return Response.json({ ...result, autoSave: autoSave === "on" });
   } catch (error) {

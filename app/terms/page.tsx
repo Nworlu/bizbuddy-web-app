@@ -70,7 +70,7 @@ export default function TermsPage() {
 
       <section>
         <h2>Price</h2>
-        <p>This version is free. There is no card to enter. If a paid version is offered later, BizBuddy will say so in the product before you are asked to pay.</p>
+        <p>The books are free. Tell BizBuddy and WhatsApp include 15 test messages. After that, new notes wait until a subscription is ready. There is no card to enter yet. If a paid version is offered later, BizBuddy will say so in the product before you are asked to pay.</p>
       </section>
 
       <section>

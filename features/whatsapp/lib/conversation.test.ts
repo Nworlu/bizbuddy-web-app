@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Action } from "@/features/tell/lib/intents";
-import { EMPTY_MEMORY, type ShopMemory } from "@/features/tell/lib/memory";
+import { EMPTY_MEMORY, TRIAL_MESSAGES, type ShopMemory } from "@/features/tell/lib/memory";
 import { demoData } from "@/shared/lib/demo";
 import { customerTotals } from "@/shared/lib/finance";
 import type { BizData } from "@/shared/lib/types";
@@ -98,6 +98,7 @@ function world() {
     clearReminders: () => void (reminders = []),
     last: () => sent[sent.length - 1],
     script: (next: Action[] | Error) => void (script = next),
+    setMemory: (next: ShopMemory) => void (memory = next),
     say: (text: string, from = OWNER) => handleMessage({ id: `m${++n}`, from, text }, deps),
     tap: (buttonId: string, from = OWNER) => handleMessage({ id: `m${++n}`, from, buttonId }, deps),
   };
@@ -607,5 +608,29 @@ describe("the chat follows what they just said", () => {
     await w.say("Are you connected to my socials?");
     expect(w.last().body).toContain("Instagram as @jaygadgets_ng");
     expect(w.asked).toHaveLength(0);
+  });
+});
+
+describe("test messages", () => {
+  it("reads the 15th note, then stops until a subscription exists", async () => {
+    const w = world();
+    w.setMemory({ ...EMPTY_MEMORY, trialUsed: TRIAL_MESSAGES - 1 });
+    w.script([sale()]);
+    await w.say("Sold a cap for 10k");
+    expect(w.asked).toHaveLength(1);
+    expect(w.memory().trialUsed).toBe(TRIAL_MESSAGES);
+
+    await w.say("Sold another cap");
+    expect(w.asked).toHaveLength(1);
+    expect(w.last().body).toContain("15 test messages");
+    expect(w.last().body).toContain("subscription");
+    expect(w.memory().trialUsed).toBe(TRIAL_MESSAGES);
+  });
+
+  it("does not spend a message when the note could not be read", async () => {
+    const w = world();
+    w.script(BUSY);
+    await w.say("Sold a cap");
+    expect(w.memory().trialUsed).toBe(0);
   });
 });

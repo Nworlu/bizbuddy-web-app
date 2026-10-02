@@ -14,7 +14,7 @@ import { formatNaira } from "@/shared/lib/format";
 import { added, AUTO_SAVE_AFTER, needsAsking, offerDue, reviewed, undo, withAutoSave, type Undo } from "@/features/tell/lib/autosave";
 import { shopProfile } from "@/features/tell/lib/profile";
 import { aboutSocials, describeLearned, learnedAnything, mergeCatalog, onlyLink, SOCIAL_LABELS, socialFromUrl, type Learned } from "@/features/tell/lib/knowledge";
-import { learn, memoryForPrompt, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
+import { learn, memoryForPrompt, spendTrial, trialClosedMessage, trialOpen, type ShopMemory, type UnsavedReminder } from "@/features/tell/lib/memory";
 import { dueFrom, formatWhen, lagosClock, reminderList, snoozed, type Reminder } from "@/features/reminders/lib/when";
 import { normalizeWhatsAppSender } from "@/shared/lib/phone";
 import type { BizData } from "@/shared/lib/types";
@@ -163,12 +163,13 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     return deps.send(to, voice ? "I couldn't hear that. Say it again, or type it." : "I can only read what you type for now. A photo of your page or price list I can learn from.");
   }
 
-  const [books, memory, waiting, thread] = await Promise.all([
+  const [books, loaded, waiting, thread] = await Promise.all([
     found ? Promise.resolve(found) : deps.loadBooks(chat.businessId),
     deps.getMemory(chat.businessId),
     deps.getPending(phone),
     deps.getThread(phone),
   ]);
+  let memory = loaded;
   const pending = waiting?.businessId === chat.businessId ? waiting : null;
 
   // BizBuddy asked for something missing ("Who bought it?"): a short reply is the answer, so read the
@@ -224,6 +225,8 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
     return;
   }
 
+  if (!trialOpen(memory)) return say(trialClosedMessage());
+
   let actions;
   try {
     const result = await deps.interpret({
@@ -237,6 +240,8 @@ export async function handleMessage(message: Incoming, deps: Deps): Promise<void
       thread: threadPrompt(thread),
     });
     actions = personalize(result.actions, chat);
+    memory = spendTrial(memory);
+    await deps.saveMemory(chat.businessId, memory);
   } catch (error) {
     return say(deps.isBusy(error) ? "I'm busy right now. Send that again in a minute." : "Sorry, I couldn't read that just now. Try again, or record it in the app.");
   }
@@ -362,12 +367,15 @@ export function reminderFor(pending: Pending, books: BizData): { body: string; b
 /** Reads a picture or website, and shows what it learned about the business with Save / Cancel. */
 async function learnFrom(read: () => Promise<Learned>, phone: string, to: string, chat: Extract<ChatWith, { kind: "owner" }>, deps: Deps) {
   if (!deps.learn) return deps.send(to, "I can only read what you type for now. A photo of your page or price list I can learn from.");
+  const memory = await deps.getMemory(chat.businessId);
+  if (!trialOpen(memory)) return deps.send(to, trialClosedMessage());
   let learned: Learned;
   try {
     learned = await read();
   } catch (error) {
     return deps.send(to, deps.learn.problem(error) ?? "Sorry, I couldn't read that just now. Try again in a moment.");
   }
+  await deps.saveMemory(chat.businessId, spendTrial(memory));
   if (!learnedAnything(learned)) {
     return deps.send(to, "I couldn't find anything about your business in that. I learn from screenshots of your Instagram or WhatsApp catalogue, photos of your price list, or your website.");
   }

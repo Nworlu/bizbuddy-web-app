@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, type ShopMemory } from "./memory";
+import { EMPTY_MEMORY, learn, memoryForPrompt, parseMemory, spendTrial, trialOpen, TRIAL_MESSAGES, type ShopMemory } from "./memory";
 import type { Draft } from "./intents";
 
 const sale: Draft = {
@@ -94,6 +94,7 @@ describe("parseMemory", () => {
       autoSave: "off",
       unsavedReminder: "30m",
       checkIns: { evening: true, weekly: true },
+      trialUsed: 0,
       description: "",
       catalog: [],
       socials: {},
@@ -102,5 +103,13 @@ describe("parseMemory", () => {
 
   it("is empty for anything else", () => {
     expect(parseMemory(null)).toEqual(EMPTY_MEMORY);
+  });
+
+  it("keeps the test-message count, and starts at zero when it was never stored", () => {
+    expect(parseMemory({ trialUsed: 4 }).trialUsed).toBe(4);
+    expect(parseMemory({}).trialUsed).toBe(0);
+    expect(trialOpen(EMPTY_MEMORY)).toBe(true);
+    expect(trialOpen(spendTrial({ ...EMPTY_MEMORY, trialUsed: TRIAL_MESSAGES - 1 }))).toBe(false);
+    expect(spendTrial(EMPTY_MEMORY).trialUsed).toBe(1);
   });
 });

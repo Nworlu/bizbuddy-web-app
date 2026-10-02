@@ -33,6 +33,11 @@ export type ShopMemory = {
   unsavedReminder: UnsavedReminder;
   /** Check-ins BizBuddy starts (features/checkins): the 7pm nudge and Sunday's summary. */
   checkIns: CheckIns;
+  /**
+   * Notes read during the test, before a subscription exists. Each Tell BizBuddy note,
+   * WhatsApp note, voice note, photo, or website read counts as one. Save and Cancel do not.
+   */
+  trialUsed: number;
   /** From their own page or price list (lib/knowledge.ts), confirmed by the owner. */
   description: string;
   catalog: CatalogItem[];
@@ -46,7 +51,23 @@ export const UNSAVED_REMINDERS: readonly UnsavedReminder[] = ["30m", "2h", "neve
 export const unsavedReminderMinutes = (choice: UnsavedReminder): number | null => (choice === "30m" ? 30 : choice === "2h" ? 120 : null);
 const AUTO_SAVE_STATES: readonly AutoSave[] = ["off", "offered", "on", "declined"];
 
-export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off", unsavedReminder: "30m", checkIns: DEFAULT_CHECK_INS, description: "", catalog: [], socials: {} };
+export const EMPTY_MEMORY: ShopMemory = { products: [], writesThousands: false, lessons: [], team: [], streak: 0, autoSave: "off", unsavedReminder: "30m", checkIns: DEFAULT_CHECK_INS, trialUsed: 0, description: "", catalog: [], socials: {} };
+
+/** How many notes a shop can try before a subscription exists. */
+export const TRIAL_MESSAGES = 15;
+
+export function trialOpen(memory: ShopMemory): boolean {
+  return memory.trialUsed < TRIAL_MESSAGES;
+}
+
+/** One more test note has been read. */
+export function spendTrial(memory: ShopMemory): ShopMemory {
+  return { ...memory, trialUsed: memory.trialUsed + 1 };
+}
+
+export function trialClosedMessage(): string {
+  return `You've used your ${TRIAL_MESSAGES} test messages. BizBuddy will read new notes again once a subscription is ready. Your books stay, and you can still record a sale in the app.`;
+}
 
 function clip(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
@@ -192,7 +213,8 @@ export function parseMemory(value: unknown): ShopMemory {
     ? row.team.filter((item): item is string => typeof item === "string").map((item) => clip(item, TEXT_MAX)).filter(Boolean).slice(0, TEAM)
     : [];
   const streak = typeof row.streak === "number" && Number.isSafeInteger(row.streak) && row.streak > 0 ? row.streak : 0;
-  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off", unsavedReminder: oneOf(row.unsavedReminder, UNSAVED_REMINDERS) ?? "30m", checkIns: parseCheckIns(row.checkIns), ...parseKnowledge(row) };
+  const trialUsed = typeof row.trialUsed === "number" && Number.isSafeInteger(row.trialUsed) && row.trialUsed > 0 ? row.trialUsed : 0;
+  return { products, writesThousands: row.writesThousands === true, lessons, team, streak, autoSave: oneOf(row.autoSave, AUTO_SAVE_STATES) ?? "off", unsavedReminder: oneOf(row.unsavedReminder, UNSAVED_REMINDERS) ?? "30m", checkIns: parseCheckIns(row.checkIns), trialUsed, ...parseKnowledge(row) };
 }
 
 function parseKnowledge(row: Record<string, unknown>): Pick<ShopMemory, "description" | "catalog" | "socials"> {

@@ -35,6 +35,6 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "Is there a fee?",
-    a: "This version is free. There is no card to enter.",
+    a: "The books are free. Tell BizBuddy and WhatsApp include 15 test messages. After that, new notes wait until a subscription is ready. There is no card to enter yet.",
   },
 ];

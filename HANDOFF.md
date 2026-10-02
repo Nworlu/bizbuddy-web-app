@@ -133,7 +133,7 @@ features/
   whatsapp/                    lib/conversation.ts (one message, start to finish; everything outside comes in as Deps, so tests fake it), lib/thread.ts (follow-ups from the last few lines), lib/person.ts (who the chat is with), lib/text.ts (replies, Save/Cancel words), server/meta.ts (signature check, send text/buttons/template, typing indicator), server/books.ts (Supabase with the secret key), server/who.ts
 
 shared/
-  ui/                          logo, icons, period-filter (with usePeriodRange), confirm-dialog, delete-payment-button, offline-banner, service-worker, whatsapp-opt-in  (used by more than one feature)
+  ui/                          logo (public/logo.png; favicon and home-screen icons are the same mark), icons, period-filter (with usePeriodRange), confirm-dialog, delete-payment-button, offline-banner, service-worker, whatsapp-opt-in  (used by more than one feature)
   lib/
     types.ts                   data model
     actions.ts                 withSale(), withCustomerPayment(), withExpense(): the record rules shared by the app, Tell BizBuddy, and WhatsApp

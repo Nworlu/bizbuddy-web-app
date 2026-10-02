@@ -1,10 +1,10 @@
+import Image from "next/image";
+
 export function Logo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  const mark = { sm: "size-7 rounded-lg text-sm", md: "size-8 rounded-lg text-sm", lg: "size-16 rounded-2xl text-3xl" }[size];
+  const px = { sm: 28, md: 32, lg: 64 }[size];
   return (
     <span className="flex items-center gap-2.5">
-      <span aria-hidden="true" className={`flex items-center justify-center bg-brand-700 font-bold text-white ${mark}`}>
-        ₦
-      </span>
+      <Image src="/logo.png" alt={size === "lg" ? "BizBuddy" : ""} width={px} height={px} className={`${size === "lg" ? "rounded-2xl" : "rounded-lg"} object-cover`} style={{ width: px, height: px }} />
       {size !== "lg" && <span className="text-lg font-extrabold tracking-tight text-ink">BizBuddy</span>}
     </span>
   );

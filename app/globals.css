@@ -82,3 +82,140 @@ body {
     animation: none;
   }
 }
+
+/* Opening splash. The shop mark builds, then the app is shown. */
+.splash-glow {
+  position: absolute;
+  width: 28rem;
+  height: 28rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(22 163 74 / 0.22), transparent 68%);
+  animation: splash-glow 2.8s ease-in-out infinite;
+}
+
+.splash-ring {
+  transform-origin: 50% 50%;
+}
+
+.splash-ring-a {
+  animation: splash-spin 9s linear infinite;
+}
+
+.splash-ring-b {
+  animation: splash-spin 6.5s linear infinite reverse;
+}
+
+.splash-orbit {
+  position: absolute;
+  inset: 0;
+  animation: splash-spin 4.8s linear infinite;
+}
+
+.splash-orbit-b {
+  animation-duration: 7.2s;
+  animation-direction: reverse;
+}
+
+.splash-mark {
+  animation: splash-pop 0.7s cubic-bezier(0.22, 1.35, 0.36, 1) both;
+}
+
+.splash-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 32%, rgb(255 255 255 / 0.72) 48%, transparent 64%);
+  transform: translateX(-130%);
+  animation: splash-shine 1.15s ease 0.45s both;
+}
+
+.splash-letter {
+  display: inline-block;
+  animation: splash-letter 0.55s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+
+.splash-caption {
+  animation: splash-fade 0.5s ease both;
+  animation-delay: 1.15s;
+}
+
+.splash-fill {
+  animation: splash-travel 1.6s ease-in-out infinite;
+}
+
+@keyframes splash-glow {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes splash-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes splash-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes splash-shine {
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes splash-letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.45rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes splash-travel {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(330%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-glow,
+  .splash-ring,
+  .splash-orbit,
+  .splash-mark,
+  .splash-shine,
+  .splash-letter,
+  .splash-caption,
+  .splash-fill {
+    animation: none;
+  }
+
+}

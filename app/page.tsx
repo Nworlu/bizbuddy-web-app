@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LandingScreen } from "@/features/marketing/screen/landing-screen";
 import { FAQ } from "@/features/marketing/content/faq";
+import { PLANS } from "@/features/billing/content/plans";
 import { SITE_DESCRIPTION, SITE_TITLE, siteUrl } from "@/shared/lib/site";
 
 export const metadata: Metadata = {
@@ -23,7 +24,13 @@ export default function HomePage() {
         url,
         description: SITE_DESCRIPTION,
         inLanguage: "en-NG",
-        offers: { "@type": "Offer", price: "0", priceCurrency: "NGN" },
+        offers: PLANS.map((plan) => ({
+          "@type": "Offer",
+          name: plan.name,
+          price: String(plan.amount),
+          priceCurrency: "NGN",
+          description: plan.comingSoon ? `Coming soon. ${plan.summary}` : plan.summary,
+        })),
       },
       {
         "@type": "FAQPage",

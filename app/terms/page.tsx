@@ -70,7 +70,7 @@ export default function TermsPage() {
 
       <section>
         <h2>Price</h2>
-        <p>The books on the website are free. Each shop gets 15 test messages on Tell BizBuddy and WhatsApp. After that, the website still records sales, payments, and spending. WhatsApp notes, reminders to collect what you're owed, and the Sunday summary wait until a subscription is ready. There is no card to enter yet. If a paid version is offered later, BizBuddy will say so before you are asked to pay, and will message you on WhatsApp when it is ready.</p>
+        <p>The books on the website are free. Shop is ₦8,000 a month. Counter, the recommended plan, is ₦15,000 a month. Both are coming soon. Shop is WhatsApp notes and reminders to collect what you&apos;re owed. Counter adds voice notes, the evening check-in, the Sunday summary, and learning the shop. Each shop gets 15 test messages on Tell BizBuddy and WhatsApp first. After that, the website still records sales, payments, and spending. There is no card to enter yet. BizBuddy will say so before you are asked to pay, and will message you on WhatsApp when a subscription is ready.</p>
       </section>
 
       <section>

@@ -35,6 +35,6 @@ export const FAQ: FaqItem[] = [
   },
   {
     q: "Is there a fee?",
-    a: "The books on the website are free. Each shop gets 15 test messages on Tell BizBuddy and WhatsApp. After that, the website still records sales, payments, and spending. WhatsApp notes, reminders to collect what you're owed, and the Sunday summary wait until a subscription is ready. There is no card to enter yet.",
+    a: "The books on the website are free. Shop is ₦8,000 a month. Counter, the recommended plan, is ₦15,000 a month. Both are coming soon. Shop is WhatsApp notes and reminders to collect what you're owed. Counter adds voice notes, the evening check-in, the Sunday summary, and learning the shop. Each shop gets 15 test messages first. There is no card to enter yet.",
   },
 ];

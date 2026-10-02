@@ -7,6 +7,7 @@ import { customersOwing, periodSummary, recentActivity, type Activity } from "@/
 import { formatDate, formatNaira, greeting } from "@/shared/lib/format";
 import { hasRecords } from "@/shared/lib/store";
 import { useBiz } from "@/features/shell/hooks/use-biz";
+import { BOOKS, COUNTER } from "@/features/billing/content/plans";
 import { ArrowDownIcon, ArrowUpIcon, AskIcon, CheckIcon, ChevronRightIcon, PlusIcon } from "@/shared/ui/icons";
 import { PeriodFilter, usePeriodRange } from "@/shared/ui/period-filter";
 import { SUGGESTED_NOTES, SUGGESTED_QUESTIONS } from "../content/suggested-questions";
@@ -55,6 +56,22 @@ export function Dashboard() {
           tone="text-amber-700"
           sub={owing.length === 0 ? "Nobody owes you" : `${owing.length} customer${owing.length === 1 ? "" : "s"} · all time`}
         />
+      </section>
+
+      <section aria-labelledby="subscription-title" className="mb-6 rounded-2xl border border-stone-200 bg-white p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold text-brand-700">You&apos;re on {BOOKS.name}</p>
+            <h2 id="subscription-title" className="mt-1 text-base font-semibold">
+              {COUNTER.name} is {COUNTER.price} {COUNTER.cadence}
+            </h2>
+            <p className="mt-1 text-sm text-ink-muted">Recommended. Voice notes, the evening check-in, the Sunday summary, and learning the shop. The books stay free.</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Coming soon</span>
+        </div>
+        <Link href="/billing" className="mt-4 inline-flex items-center gap-0.5 text-sm font-semibold text-brand-700 hover:text-brand-800">
+          Billing <ChevronRightIcon className="size-3.5" />
+        </Link>
       </section>
 
       {!hasRecords(data) ? (

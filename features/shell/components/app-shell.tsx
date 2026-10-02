@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useBizData, useSyncMeta } from "@/shared/lib/store";
 import { startSyncing, useSyncStatus } from "@/shared/lib/sync-runner";
-import { AskIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
+import { AskIcon, BillingIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
 import { Logo } from "@/shared/ui/logo";
 import { OfflineBanner } from "@/shared/ui/offline-banner";
 import { BizContext } from "../hooks/use-biz";
@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { href: "/expenses", label: "Expenses", icon: <ExpenseIcon /> },
   { href: "/customers", label: "Customers", icon: <CustomersIcon /> },
   { href: "/ask", label: "Tell BizBuddy", icon: <AskIcon /> },
+  { href: "/billing", label: "Billing", icon: <BillingIcon /> },
   { href: "/settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
@@ -147,9 +148,14 @@ function MobileHeader({ businessName }: { businessName: string }) {
         <span className="sr-only">, {businessName}</span>
         <SyncBadge className="truncate" />
       </div>
-      <Link href="/settings" aria-label="Settings" className="-mr-2 rounded-lg p-2 text-ink-muted hover:bg-stone-100 hover:text-ink">
-        <SettingsIcon />
-      </Link>
+      <div className="flex items-center">
+        <Link href="/billing" aria-label="Billing" className="rounded-lg p-2 text-ink-muted hover:bg-stone-100 hover:text-ink">
+          <BillingIcon />
+        </Link>
+        <Link href="/settings" aria-label="Settings" className="-mr-2 rounded-lg p-2 text-ink-muted hover:bg-stone-100 hover:text-ink">
+          <SettingsIcon />
+        </Link>
+      </div>
     </header>
   );
 }

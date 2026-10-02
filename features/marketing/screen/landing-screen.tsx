@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
 import { Logo } from "@/shared/ui/logo";
 import { useBizData } from "@/shared/lib/store";
+import { BOOKS, PLANS } from "@/features/billing/content/plans";
 import { BENEFITS, STEPS } from "../content/landing";
 import { FAQ } from "../content/faq";
 
@@ -21,6 +22,36 @@ export function LandingScreen() {
   const hasBusiness = Boolean(data?.business);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTitleId = useId();
+
+  const scrollFrame = useRef(0);
+
+  function scrollToSection(event: MouseEvent<HTMLAnchorElement>) {
+    const id = event.currentTarget.getAttribute("href")?.slice(1);
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return;
+    event.preventDefault();
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setMenuOpen(false);
+    window.cancelAnimationFrame(scrollFrame.current);
+    window.requestAnimationFrame(() => {
+      const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 96);
+      history.pushState(null, "", `#${id}`);
+      if (reduce) {
+        window.scrollTo(0, top);
+        return;
+      }
+      const from = window.scrollY;
+      const distance = top - from;
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / 700);
+        const eased = 1 - (1 - t) ** 3;
+        window.scrollTo(0, from + distance * eased);
+        if (t < 1) scrollFrame.current = window.requestAnimationFrame(step);
+      };
+      scrollFrame.current = window.requestAnimationFrame(step);
+    });
+  }
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -43,13 +74,16 @@ export function LandingScreen() {
             <Logo size="sm" />
           </Link>
           <nav aria-label="Page" className="hidden items-center gap-8 md:flex">
-            <a href="#how" className="text-sm text-stone-600 hover:text-ink">
+            <a href="#how" onClick={scrollToSection} className="text-sm text-stone-600 hover:text-ink">
               How it works
             </a>
-            <a href="#learns" className="text-sm text-stone-600 hover:text-ink">
+            <a href="#learns" onClick={scrollToSection} className="text-sm text-stone-600 hover:text-ink">
               Your shop
             </a>
-            <a href="#questions" className="text-sm text-stone-600 hover:text-ink">
+            <a href="#subscription" onClick={scrollToSection} className="text-sm text-stone-600 hover:text-ink">
+              Subscription
+            </a>
+            <a href="#questions" onClick={scrollToSection} className="text-sm text-stone-600 hover:text-ink">
               Questions
             </a>
           </nav>
@@ -81,13 +115,16 @@ export function LandingScreen() {
             Menu
           </p>
           <nav aria-label="Page" className="flex flex-col px-6 py-8 text-2xl font-semibold">
-            <a href="#how" onClick={() => setMenuOpen(false)} className="py-3">
+            <a href="#how" onClick={scrollToSection} className="py-3">
               How it works
             </a>
-            <a href="#learns" onClick={() => setMenuOpen(false)} className="py-3">
+            <a href="#learns" onClick={scrollToSection} className="py-3">
               Your shop
             </a>
-            <a href="#questions" onClick={() => setMenuOpen(false)} className="py-3">
+            <a href="#subscription" onClick={scrollToSection} className="py-3">
+              Subscription
+            </a>
+            <a href="#questions" onClick={scrollToSection} className="py-3">
               Questions
             </a>
             <Link href="/welcome" className="mt-4 text-brand-700">
@@ -135,7 +172,7 @@ export function LandingScreen() {
           </p>
         </section>
 
-        <section id="how" className="px-4 py-16 md:px-8 md:py-24">
+        <section id="how" className="scroll-mt-24 px-4 py-16 md:px-8 md:py-24">
           <div className="mx-auto max-w-5xl">
             <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <p className="flex items-center gap-2 text-sm text-stone-600">
@@ -199,7 +236,7 @@ export function LandingScreen() {
           </div>
         </section>
 
-        <section id="learns" className="px-4 py-16 md:px-8 md:py-24">
+        <section id="learns" className="scroll-mt-24 px-4 py-16 md:px-8 md:py-24">
           <div className="mx-auto max-w-5xl">
             <p className="flex items-center gap-2 text-sm text-stone-600">
               <Spark />
@@ -230,7 +267,49 @@ export function LandingScreen() {
           </div>
         </section>
 
-        <section id="questions" className="bg-brand-900 px-4 py-16 text-white md:px-8 md:py-24">
+        <section id="subscription" className="scroll-mt-24 px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto max-w-6xl">
+            <p className="flex items-center gap-2 text-sm text-stone-600">
+              <Spark />
+              Subscription
+            </p>
+            <h2 className="mt-4 max-w-xl text-balance text-4xl font-bold tracking-tight md:text-6xl">
+              The books are free. <span className="text-stone-500">Counter is the one to pick.</span>
+            </h2>
+            <p className="mt-4 max-w-xl text-base leading-7 text-stone-600">
+              Record sales, payments, and what you spent with no subscription. Shop covers WhatsApp and collecting what you&apos;re owed. Counter adds the rest of the day, and it is the recommended plan.
+            </p>
+            <div className="mt-10 grid grid-cols-1 items-stretch gap-4 md:grid-cols-3 md:gap-5">
+              {PLANS.map((plan) => {
+                const dark = plan.recommended;
+                return (
+                  <article key={plan.name} className={`flex flex-col rounded-[1.75rem] p-6 shadow-xl md:p-7 ${dark ? "max-md:order-first bg-brand-800 text-brand-100 shadow-brand-900/20 md:-translate-y-3" : "bg-white text-stone-600 shadow-stone-300/50"}`}>
+                    <p className={`text-sm ${dark ? "text-amber-200" : plan.comingSoon ? "text-amber-700" : ""}`}>{dark ? "Recommended · Coming soon" : plan.comingSoon ? "Coming soon" : "Start here"}</p>
+                    <h3 className={`mt-6 text-3xl font-semibold ${dark ? "text-white" : "text-ink"}`}>{plan.name}</h3>
+                    <p className={`mt-2 text-4xl font-bold tracking-tight ${dark ? "text-white" : "text-ink"}`}>
+                      {plan.price} {plan.cadence && <span className={`text-lg font-semibold ${dark ? "text-brand-100" : "text-stone-500"}`}>{plan.cadence}</span>}
+                    </p>
+                    <p className="mt-3 text-base leading-6">{plan.summary}</p>
+                    <ul className={`mt-6 space-y-2 text-base ${dark ? "text-white" : ""}`}>
+                      {plan.points.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                    {plan.name === BOOKS.name ? (
+                      <Link href="/welcome" className="mt-8 inline-flex w-fit rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800">
+                        Start your books
+                      </Link>
+                    ) : (
+                      <p className={`mt-8 w-fit rounded-full px-5 py-2.5 text-sm font-semibold ${dark ? "bg-white/15 text-white" : "bg-amber-50 text-amber-700"}`}>Coming soon</p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="questions" className="scroll-mt-24 bg-brand-900 px-4 py-16 text-white md:px-8 md:py-24">
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-10 md:grid-cols-[0.85fr_1.15fr] md:items-start">
             <div className="md:sticky md:top-24">
               <p className="flex items-center gap-2 text-sm text-brand-100">

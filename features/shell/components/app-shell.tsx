@@ -11,7 +11,6 @@ import { AskIcon, BillingIcon, ChevronRightIcon, CloseIcon, CustomersIcon, Expen
 import { Logo } from "@/shared/ui/logo";
 import { InstallPrompt } from "@/shared/ui/install-prompt";
 import { OfflineBanner } from "@/shared/ui/offline-banner";
-import { SplashScreen } from "@/shared/ui/splash-screen";
 import { BizContext } from "../hooks/use-biz";
 import { SyncBadge } from "./sync-badge";
 
@@ -44,28 +43,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const business = data?.business;
   // Logged in on a new phone: the account's shop arrives with the first sync.
   const downloading = !business && !!meta?.businessId;
-  const [introDone, setIntroDone] = useState(false);
 
   useEffect(() => startSyncing(), []);
-
-  useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setIntroDone(true), reduce ? 0 : 2800);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     if (data && !data.business && !downloading) router.replace("/welcome");
   }, [data, downloading, router]);
 
-  if (downloading && (sync.phase === "offline" || sync.phase === "error")) {
-    return <CenterMessage title="Connect to get your books" body="Your books are in your account. Connect to the internet once to download them to this phone. Then add BizBuddy to your home screen. That app opens with no internet." />;
+  if (downloading) {
+    return sync.phase === "offline" || sync.phase === "error" ? (
+      <CenterMessage title="Connect to get your books" body="Your books are in your account. Connect to the internet once to download them to this phone. Then add BizBuddy to your home screen. That app opens with no internet." />
+    ) : (
+      <ShellSkeleton label="Getting your books…" />
+    );
   }
-  const opening = !data || downloading;
-  if (opening || (business && !introDone)) {
-    return <SplashScreen label={downloading ? "Getting your books" : "Opening your books"} />;
-  }
-  if (!data || !business) return null;
+  if (!data || !business) return <ShellSkeleton />;
 
   return (
     <BizContext.Provider value={{ data, business }}>
@@ -279,6 +271,27 @@ function BottomNav() {
         </div>
       </dialog>
     </>
+  );
+}
+
+function ShellSkeleton({ label = "Loading your business…" }: { label?: string }) {
+  return (
+    <div role="status" aria-live="polite" className="md:pl-60">
+      <span className="sr-only">{label}</span>
+      <div className="fixed inset-y-0 left-0 hidden w-60 border-r border-stone-200 bg-white md:block" />
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-8">
+        <div className="skeleton h-8 w-56" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton h-24 rounded-2xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="skeleton h-56 rounded-2xl" />
+          <div className="skeleton h-56 rounded-2xl" />
+        </div>
+      </div>
+    </div>
   );
 }
 

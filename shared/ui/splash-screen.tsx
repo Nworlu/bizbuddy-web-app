@@ -1,10 +1,10 @@
 import Image from "next/image";
 
-/** The shop mark builds itself while the books open. */
-export function SplashScreen({ label }: { label: string }) {
+/** Shown over the landing page until the intro finishes. */
+export function SplashScreen({ label }: { label?: string }) {
   return (
     <div role="status" aria-live="polite" className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-[#fafaf8]">
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{label || "BizBuddy"}</span>
       <div className="splash-glow" aria-hidden="true" />
 
       <div className="relative size-52" aria-hidden="true">
@@ -36,7 +36,7 @@ export function SplashScreen({ label }: { label: string }) {
           </span>
         ))}
       </p>
-      <p className="splash-caption relative mt-2 text-sm text-ink-muted">{label}</p>
+      {label ? <p className="splash-caption relative mt-2 text-sm text-ink-muted">{label}</p> : null}
       <div className="relative mt-6 h-1 w-36 overflow-hidden rounded-full bg-brand-100" aria-hidden="true">
         <div className="splash-fill h-full w-1/3 rounded-full bg-brand-700" />
       </div>

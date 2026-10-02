@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
 import { Logo } from "@/shared/ui/logo";
+import { SplashScreen } from "@/shared/ui/splash-screen";
 import { useBizData } from "@/shared/lib/store";
 import { BOOKS, PLANS } from "@/features/billing/content/plans";
 import { BENEFITS, STEPS } from "../content/landing";
@@ -21,6 +22,7 @@ export function LandingScreen() {
   const data = useBizData();
   const hasBusiness = Boolean(data?.business);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [splash, setSplash] = useState(true);
   const menuTitleId = useId();
 
   const scrollFrame = useRef(0);
@@ -54,6 +56,21 @@ export function LandingScreen() {
   }
 
   useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(() => setSplash(false), reduce ? 0 : 2800);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!splash) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [splash]);
+
+  useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMenuOpen(false);
@@ -63,7 +80,9 @@ export function LandingScreen() {
   }, [menuOpen]);
 
   return (
-    <div className="min-h-screen bg-[#f6f4f0] text-ink">
+    <>
+    {splash && <SplashScreen />}
+    <div className="min-h-screen bg-[#f6f4f0] text-ink" aria-hidden={splash || undefined} inert={splash ? true : undefined}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow">
         Skip to content
       </a>
@@ -372,6 +391,7 @@ export function LandingScreen() {
         </nav>
       </footer>
     </div>
+    </>
   );
 }
 

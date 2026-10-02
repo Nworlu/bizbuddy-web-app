@@ -100,7 +100,8 @@ function SignedIn({ phone }: { phone: string }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const deleteBusy = useRef(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const deleteLock = useRef(false);
   const { text } = syncLabel(status);
   const waiting = status.pending;
 
@@ -111,8 +112,9 @@ function SignedIn({ phone }: { phone: string }) {
   }
 
   async function confirmDelete() {
-    if (deleteBusy.current) return;
-    deleteBusy.current = true;
+    if (deleteLock.current) return;
+    deleteLock.current = true;
+    setDeleteBusy(true);
     setDeleteError(null);
     const businessId = getSyncMeta()?.businessId ?? undefined;
     try {
@@ -121,8 +123,10 @@ function SignedIn({ phone }: { phone: string }) {
       setDeleting(false);
       router.replace("/welcome");
     } catch (error) {
-      deleteBusy.current = false;
       setDeleteError(error instanceof Error ? error.message : "Couldn't delete the account. Try again.");
+    } finally {
+      deleteLock.current = false;
+      setDeleteBusy(false);
     }
   }
 
@@ -184,13 +188,14 @@ function SignedIn({ phone }: { phone: string }) {
       <ConfirmDialog
         open={deleting}
         title="Delete this account?"
-        confirmLabel="Delete account"
+        confirmLabel={deleteBusy ? "Deleting…" : "Delete account"}
         onConfirm={() => void confirmDelete()}
         onCancel={() => {
-          if (deleteBusy.current) return;
+          if (deleteLock.current) return;
           setDeleting(false);
         }}
         error={deleteError}
+        busy={deleteBusy}
       >
         <p>
           This deletes the account for {displayPhone(phone)} and everything saved with it: the settings (business name, your name, phone, and what the shop does), sales, payments, expenses, customers, reminders, and what BizBuddy remembered, including the WhatsApp chat. Those settings are removed from this phone too. It can&apos;t be undone.

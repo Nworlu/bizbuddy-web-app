@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <Sidebar businessName={business.name} signedIn={!!meta} demo={!!data.demo} />
       <MobileHeader businessName={business.name} />
-      <main id="main" className="pb-28 md:pb-10 md:pl-60">
+      <main id="main" className="pb-36 md:pb-10 md:pl-60">
         <OfflineBanner />
         <InstallPrompt />
         {children}

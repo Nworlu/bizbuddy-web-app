@@ -7,6 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import { removeAccount } from "@/features/account/server/delete-account";
 import { phoneFromLoginEmail } from "@/shared/lib/phone";
 
+export const maxDuration = 60;
+
 export async function DELETE(request: Request) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,19 +49,24 @@ export async function DELETE(request: Request) {
       async seenMessageIds() {
         const ids: string[] = [];
         const page = 1000;
-        for (let from = 0; ; from += page) {
-          const { data: rows, error: rowError } = await admin.from("whatsapp_messages").select("id").range(from, from + page - 1);
-          if (rowError) {
-            if (missing(rowError.code)) return [];
-            throw rowError;
+        try {
+          for (let from = 0; ; from += page) {
+            const { data: rows, error: rowError } = await admin.from("whatsapp_messages").select("id").range(from, from + page - 1);
+            if (rowError) {
+              if (!missing(rowError.code)) console.error("Account: skipped WhatsApp message ids", rowError.message);
+              return ids;
+            }
+            for (const row of rows ?? []) if (typeof row.id === "string") ids.push(row.id);
+            if (!rows || rows.length < page) return ids;
           }
-          for (const row of rows ?? []) if (typeof row.id === "string") ids.push(row.id);
-          if (!rows || rows.length < page) return ids;
+        } catch (error) {
+          console.error("Account: skipped WhatsApp message ids", error instanceof Error ? error.message : error);
+          return ids;
         }
       },
       async deleteSeenMessages(ids) {
         const { error: rowError } = await admin.from("whatsapp_messages").delete().in("id", ids);
-        if (rowError) throw rowError;
+        if (rowError) console.error("Account: skipped deleting WhatsApp message ids", rowError.message);
       },
       async deleteUserRows(table, userId) {
         const { error: rowError } = await admin.from(table).delete().eq("user_id", userId);

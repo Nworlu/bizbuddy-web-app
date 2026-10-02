@@ -2,7 +2,7 @@
 export const SITE_NAME = "BizBuddy";
 export const SITE_TITLE = "BizBuddy — run the shop from one book";
 export const SITE_DESCRIPTION =
-  "A book for Nigerian shops. Record what you sold, what came in, and what you spent. Cash, transfer, and POS. It works on your phone with no internet.";
+  "A book for Nigerian shops. Record what you sold, what came in, and what you spent. Cash, transfer, and POS. Add it to your home screen, and that app opens with no internet.";
 
 const FALLBACK_ORIGIN = "https://bizbuddy-web-app.vercel.app";
 

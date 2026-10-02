@@ -15,7 +15,7 @@ const STEP_TONES = [
 ];
 
 const RIBBON = ["Record the sale", "Count what came in", "Write what you spent", "See the day"];
-const RIBBON_TWO = ["Works offline", "Learns your shop", "Backed up to your account", "Only you see your books"];
+const RIBBON_TWO = ["Add it to your home screen", "Learns your shop", "Backed up to your account", "Only you see your books"];
 
 export function LandingScreen() {
   const data = useBizData();

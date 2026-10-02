@@ -27,9 +27,9 @@ export default function PrivacyPage() {
       <section>
         <h2>On your phone first</h2>
         <p>
-          The books are saved in this browser on this phone, so BizBuddy still opens with no internet. Closing the tab does not remove them. Clearing this site&apos;s data, or using another browser, starts empty.
+          The books are saved in this browser on this phone. Closing the tab does not remove them. Clearing this site&apos;s data, or using another browser, starts empty. Opening the website needs internet.
         </p>
-        <p>The pages of the app can be saved on the phone so they open offline. The business records are not part of that page cache. They stay in the browser&apos;s own storage.</p>
+        <p>Add BizBuddy to your home screen, and that app opens with no internet. The pages are saved on the phone for that app. The business records are not part of that page cache. They stay in the browser&apos;s own storage.</p>
         <p>Anyone who can open BizBuddy on your phone while you are logged in can see the records.</p>
       </section>
 

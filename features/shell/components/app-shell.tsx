@@ -9,6 +9,7 @@ import { startSyncing, useSyncStatus } from "@/shared/lib/sync-runner";
 import { settingsLinks } from "@/features/settings/content/links";
 import { AskIcon, BillingIcon, ChevronRightIcon, CloseIcon, CustomersIcon, ExpenseIcon, HomeIcon, PlusIcon, SalesIcon, SettingsIcon } from "@/shared/ui/icons";
 import { Logo } from "@/shared/ui/logo";
+import { InstallPrompt } from "@/shared/ui/install-prompt";
 import { OfflineBanner } from "@/shared/ui/offline-banner";
 import { BizContext } from "../hooks/use-biz";
 import { SyncBadge } from "./sync-badge";
@@ -51,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (downloading) {
     return sync.phase === "offline" || sync.phase === "error" ? (
-      <CenterMessage title="Connect to get your books" body="Your books are in your account. Connect to the internet once to download them to this phone. After that, BizBuddy works offline." />
+      <CenterMessage title="Connect to get your books" body="Your books are in your account. Connect to the internet once to download them to this phone. Then add BizBuddy to your home screen. That app opens with no internet." />
     ) : (
       <ShellSkeleton label="Getting your books…" />
     );
@@ -67,6 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <MobileHeader businessName={business.name} />
       <main id="main" className="pb-28 md:pb-10 md:pl-60">
         <OfflineBanner />
+        <InstallPrompt />
         {children}
       </main>
       <ToastHost />

@@ -7,7 +7,7 @@ export const BOOKS = {
   price: "₦0",
   cadence: "",
   summary: "The website stays free. Record the shop with no subscription.",
-  points: ["Sales, payments, expenses, and customers", "The day on the dashboard", "Works with no internet", "Backed up when you have an account"],
+  points: ["Sales, payments, expenses, and customers", "The day on the dashboard", "Add it to your home screen, then it opens with no internet", "Backed up when you have an account"],
   comingSoon: false,
   recommended: false,
 } as const;

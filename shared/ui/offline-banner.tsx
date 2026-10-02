@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { runningAsApp } from "./install-guide";
 
 function subscribe(onChange: () => void) {
   window.addEventListener("online", onChange);
@@ -21,7 +22,10 @@ export function OfflineBanner() {
   return (
     <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 md:px-8">
       <p className="mx-auto max-w-5xl">
-        <span className="font-semibold">You&apos;re offline.</span> BizBuddy still works. Everything you record is saved on this phone.
+        <span className="font-semibold">You&apos;re offline.</span>{" "}
+        {runningAsApp()
+          ? "This app still works. Everything you record is saved on this phone."
+          : "The website needs internet to open. Add BizBuddy to your home screen, and that app opens with no internet. What you already recorded stays on this phone."}
       </p>
     </div>
   );

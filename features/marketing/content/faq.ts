@@ -3,11 +3,11 @@ import type { FaqItem } from "../types/faq";
 export const FAQ: FaqItem[] = [
   {
     q: "Where are my records stored?",
-    a: "On your phone first, so BizBuddy works with no internet. With an account, they're also backed up online whenever you're connected. Only you can see them.",
+    a: "On this phone, after you add BizBuddy to your home screen. The website needs internet to open. The home screen app is what opens with no internet. With an account, they're also backed up online whenever you're connected. Only you can see them.",
   },
   {
     q: "Do I need an account?",
-    a: "You create one with your phone number and a password when you start. It backs up your books and lets you open them on another phone. No internet at the start? Begin on your phone and back up later.",
+    a: "You create one with your phone number and a password when you start. It backs up your books and lets you open them on another phone. The first visit needs internet. Add BizBuddy to your home screen, and after that you can record with no internet and back up when you're connected.",
   },
   {
     q: "Can a customer pay only part of a sale?",
